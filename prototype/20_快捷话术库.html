@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云智服 · 快捷话术库</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#F0F4F8;color:#1F2937;min-height:100vh;display:flex}
+  .sidebar{position:fixed;left:0;top:0;width:220px;height:100vh;background:#1F2937;z-index:100;display:flex;flex-direction:column}
+  .sidebar-brand{padding:24px 20px 28px}
+  .sidebar-brand h1{color:#fff;font-size:20px;font-weight:700}
+  .sidebar-brand p{color:#9CA3AF;font-size:12px;margin-top:4px}
+  .sidebar-nav{display:flex;flex-direction:column;gap:2px;flex:1}
+  .sidebar-nav a{display:flex;align-items:center;gap:10px;padding:11px 20px;font-size:14px;color:#D1D5DB;cursor:pointer;text-decoration:none}
+  .sidebar-nav a:hover{background:rgba(255,255,255,0.06);color:#fff}
+  .sidebar-nav a.active{background:#1D9E75;color:#fff;border-left:3px solid #5DCAA5}
+  .main{margin-left:220px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+  .topbar{height:60px;background:#fff;border-bottom:1px solid #E5E7EB;display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+  .topbar h2{font-size:18px;font-weight:700}
+  .topbar-right{display:flex;align-items:center;gap:14px;font-size:13px;color:#6B7280}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#1D9E75;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+  .content{padding:24px;flex:1}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .search{width:280px;height:36px;border:1px solid #D1D5DB;border-radius:8px;padding:0 12px;font-size:13px;outline:none}
+  .search:focus{border-color:#1D9E75}
+  .btn{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
+  .btn-primary{background:#1D9E75;color:#fff}
+  .btn-primary:hover{background:#0F6E56}
+  .btn-outline{background:#fff;border:1px solid #D1D5DB;color:#374151}
+  .category-tabs{display:flex;gap:8px;margin-bottom:16px}
+  .tab{padding:6px 14px;border-radius:16px;font-size:13px;cursor:pointer;background:#fff;border:1px solid #E5E7EB;color:#6B7280}
+  .tab.active{background:#E1F5EE;color:#0F6E56;border-color:#5DCAA5;font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .card{background:#fff;border-radius:12px;padding:16px;border:1px solid #E5E7EB;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+  .card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+  .card-title{font-size:14px;font-weight:600}
+  .card-cat{font-size:11px;padding:2px 8px;border-radius:10px;background:#E1F5EE;color:#0F6E56}
+  .card-content{font-size:13px;color:#4B5563;line-height:1.6;margin-bottom:10px}
+  .card-foot{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#9CA3AF}
+  .card-actions{display:flex;gap:8px}
+  .card-actions span{cursor:pointer;color:#6B7280}
+  .card-actions span:hover{color:#1D9E75}
+  .use-count{background:#F3F4F6;padding:2px 8px;border-radius:8px}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-brand"><h1>☁️ 小云智服</h1><p>AI售后客服管理台</p></div>
+  <nav class="sidebar-nav">
+    <a>📊 数据总览</a>
+    <a>💬 会话管理</a>
+    <a>📋 工单中心</a>
+    <a>📚 知识库</a>
+    <a class="active">⚡ 快捷话术</a>
+    <a>📈 AI效果分析</a>
+    <a>⚙️ 系统设置</a>
+  </nav>
+</div>
+<div class="main">
+  <div class="topbar"><h2>快捷话术库</h2><div class="topbar-right"><span>云裳服饰</span><div class="avatar">云</div></div></div>
+  <div class="content">
+    <div class="toolbar">
+      <input class="search" placeholder="搜索话术...">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline">导入话术</button>
+        <button class="btn btn-primary">+ 新建话术</button>
+      </div>
+    </div>
+    <div class="category-tabs">
+      <span class="tab active">全部 (24)</span>
+      <span class="tab">退换货 (8)</span>
+      <span class="tab">物流查询 (5)</span>
+      <span class="tab">安抚投诉 (4)</span>
+      <span class="tab">开场白 (3)</span>
+      <span class="tab">结束语 (4)</span>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-head"><span class="card-title">7天无理由退货引导</span><span class="card-cat">退换货</span></div>
+        <div class="card-content">亲，您可以在订单页点击"申请退货"，选择退货原因后提交。我们收到退回商品并确认无误后，会在24小时内为您退款～</div>
+        <div class="card-foot"><span class="use-count">使用 128次</span><div class="card-actions"><span>编辑</span><span>删除</span></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">物流催单安抚</span><span class="card-cat">物流查询</span></div>
+        <div class="card-content">亲，非常抱歉让您久等了！我帮您查一下快递进度，请稍等～您的包裹已到达【城市】，预计明天送达，我帮您催促一下快递方。</div>
+        <div class="card-foot"><span class="use-count">使用 96次</span><div class="card-actions"><span>编辑</span><span>删除</span></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">质量问题处理</span><span class="card-cat">退换货</span></div>
+        <div class="card-content">亲，非常抱歉给您带来不好的体验！质量问题我们承担来回运费，请您拍照发给我确认，确认后为您安排退换货，您看可以吗？</div>
+        <div class="card-foot"><span class="use-count">使用 74次</span><div class="card-actions"><span>编辑</span><span>删除</span></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">转人工话术</span><span class="card-cat">安抚投诉</span></div>
+        <div class="card-content">亲，这个问题我帮您转接专业的人工客服为您处理，请稍等片刻～人工客服接入后会继续为您服务，感谢您的耐心等待！</div>
+        <div class="card-foot"><span class="use-count">使用 52次</span><div class="card-actions"><span>编辑</span><span>删除</span></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">欢迎语</span><span class="card-cat">开场白</span></div>
+        <div class="card-content">您好，欢迎光临云裳服饰～我是AI客服小云，很高兴为您服务！请问有什么可以帮您？退换货、物流查询、售后问题都可以问我哦～</div>
+        <div class="card-foot"><span class="use-count">使用 203次</span><div class="card-actions"><span>编辑</span><span>删除</span></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">结束语</span><span class="card-cat">结束语</span></div>
+        <div class="card-content">感谢您的咨询，祝您生活愉快～如果后续还有问题，随时来找我哦！方便的话请对本次服务做个评价，您的反馈是我们进步的动力💕</div>
+        <div class="card-foot"><span class="use-count">使用 187次</span><div class="card-actions"><span>编辑</span><span>删除</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

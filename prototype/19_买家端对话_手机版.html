@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云智服 · 买家端对话（手机版）</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#E5E7EB;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+  .phone{width:375px;height:720px;background:#fff;border-radius:36px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column;position:relative}
+  .status-bar{height:32px;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:12px;font-weight:600;color:#1F2937;flex-shrink:0}
+  .chat-header{height:48px;background:#fff;border-bottom:1px solid #F0F4F8;display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
+  .back{font-size:20px;color:#6B7280;cursor:pointer}
+  .shop-info{flex:1}
+  .shop-name{font-size:15px;font-weight:600}
+  .shop-status{font-size:11px;color:#10B981}
+  .more{font-size:20px;color:#6B7280}
+  .chat-body{flex:1;background:#F0F4F8;padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+  .msg{display:flex;gap:8px;max-width:80%}
+  .msg.bot{align-self:flex-start}
+  .msg.user{align-self:flex-end;flex-direction:row-reverse}
+  .avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px}
+  .avatar.bot{background:#E1F5EE}
+  .avatar.user{background:#1D9E75;color:#fff}
+  .bubble{padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;word-break:break-word}
+  .bubble.bot{background:#fff;border-bottom-left-radius:4px}
+  .bubble.user{background:#1D9E75;color:#fff;border-bottom-right-radius:4px}
+  .source-tag{display:inline-block;margin-top:6px;padding:2px 8px;background:#E1F5EE;color:#0F6E56;font-size:10px;border-radius:4px}
+  .confidence-tag{display:inline-block;margin-left:6px;padding:2px 8px;font-size:10px;border-radius:4px}
+  .confidence-tag.high{background:#D1FAE5;color:#065F46}
+  .confidence-tag.low{background:#FEF3C7;color:#92400E}
+  .transfer-btn{margin-top:8px;padding:6px 12px;background:#FFF7ED;color:#C2410C;border:1px solid #FDBA74;border-radius:6px;font-size:12px;cursor:pointer;display:inline-block}
+  .quick-replies{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .quick-reply{padding:6px 12px;background:#fff;border:1px solid #E5E7EB;border-radius:16px;font-size:12px;color:#4B5563;cursor:pointer}
+  .input-bar{height:56px;background:#fff;border-top:1px solid #E5E7EB;display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0}
+  .input-bar input{flex:1;height:36px;border:1px solid #E5E7EB;border-radius:18px;padding:0 14px;font-size:14px;outline:none}
+  .send-btn{width:36px;height:36px;background:#1D9E75;border:none;border-radius:50%;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .time{text-align:center;font-size:11px;color:#9CA3AF;margin:4px 0}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span>14:32</span><span>📶 🔋</span></div>
+  <div class="chat-header">
+    <span class="back">‹</span>
+    <div class="shop-info">
+      <div class="shop-name">云裳服饰旗舰店</div>
+      <div class="shop-status">● AI客服在线 · 秒回</div>
+    </div>
+    <span class="more">⋯</span>
+  </div>
+  <div class="chat-body">
+    <div class="time">今天 14:28</div>
+    <div class="msg bot">
+      <div class="avatar bot">☁️</div>
+      <div class="bubble">您好，我是云裳服饰AI客服小云，很高兴为您服务～请问有什么可以帮您？<br><span class="source-tag">来源：店铺欢迎语</span></div>
+    </div>
+    <div class="msg user">
+      <div class="avatar user">我</div>
+      <div class="bubble">我买的裙子有点大，能换吗？</div>
+    </div>
+    <div class="msg bot">
+      <div class="avatar bot">☁️</div>
+      <div class="bubble">可以的亲～本店支持7天无理由换货。您可以在订单页点击"申请换货"，选择需要的尺码，我们收到退回商品后会在24小时内为您发出新货。<br><span class="source-tag">来源：售后政策·退换货规则</span> <span class="confidence-tag high">置信度 92%</span></div>
+    </div>
+    <div class="quick-replies">
+      <span class="quick-reply">运费谁出？</span>
+      <span class="quick-reply">吊牌拆了能换吗？</span>
+      <span class="quick-reply">多久能收到新货？</span>
+    </div>
+    <div class="msg user">
+      <div class="avatar user">我</div>
+      <div class="bubble">吊牌拆了还能换吗</div>
+    </div>
+    <div class="msg bot">
+      <div class="avatar bot">☁️</div>
+      <div class="bubble">抱歉亲，吊牌拆除后不符合换货条件哦。如果商品存在质量问题，可以申请质量问题退换货，不受吊牌限制～<br><span class="source-tag">来源：售后政策·退换货条件</span> <span class="confidence-tag high">置信度 88%</span><br><span class="transfer-btn">🔄 这个回答不满意？转人工客服</span></div>
+    </div>
+  </div>
+  <div class="input-bar">
+    <input type="text" placeholder="请输入您的问题...">
+    <button class="send-btn">↑</button>
+  </div>
+</div>
+</body>
+</html>

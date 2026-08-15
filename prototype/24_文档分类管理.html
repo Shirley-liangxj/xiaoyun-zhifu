@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云智服 · 文档分类管理</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#F0F4F8;color:#1F2937;min-height:100vh;display:flex}
+  .sidebar{position:fixed;left:0;top:0;width:220px;height:100vh;background:#1F2937;z-index:100;display:flex;flex-direction:column}
+  .sidebar-brand{padding:24px 20px 28px}
+  .sidebar-brand h1{color:#fff;font-size:20px;font-weight:700}
+  .sidebar-brand p{color:#9CA3AF;font-size:12px;margin-top:4px}
+  .sidebar-nav{display:flex;flex-direction:column;gap:2px;flex:1}
+  .sidebar-nav a{display:flex;align-items:center;gap:10px;padding:11px 20px;font-size:14px;color:#D1D5DB;cursor:pointer;text-decoration:none}
+  .sidebar-nav a:hover{background:rgba(255,255,255,0.06);color:#fff}
+  .sidebar-nav a.active{background:#1D9E75;color:#fff;border-left:3px solid #5DCAA5}
+  .main{margin-left:220px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+  .topbar{height:60px;background:#fff;border-bottom:1px solid #E5E7EB;display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+  .topbar h2{font-size:18px;font-weight:700}
+  .topbar-right{display:flex;align-items:center;gap:14px;font-size:13px;color:#6B7280}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#1D9E75;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+  .content{padding:24px;flex:1;display:flex;gap:16px}
+  .tree-panel{width:260px;background:#fff;border-radius:12px;border:1px solid #E5E7EB;flex-shrink:0;display:flex;flex-direction:column}
+  .tree-head{padding:14px 16px;border-bottom:1px solid #F0F4F8;display:flex;justify-content:space-between;align-items:center}
+  .tree-head h3{font-size:14px;font-weight:600}
+  .add-cat{font-size:18px;color:#1D9E75;cursor:pointer;line-height:1}
+  .tree-body{padding:8px;flex:1;overflow-y:auto}
+  .cat-item{padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+  .cat-item:hover{background:#F9FAFB}
+  .cat-item.active{background:#E1F5EE;color:#0F6E56;font-weight:600}
+  .cat-count{font-size:11px;color:#9CA3AF;background:#F3F4F6;padding:1px 7px;border-radius:8px}
+  .cat-item.active .cat-count{background:#fff;color:#0F6E56}
+  .cat-item .sub{padding-left:16px;font-size:12px;color:#6B7280}
+  .doc-panel{flex:1;background:#fff;border-radius:12px;border:1px solid #E5E7EB;display:flex;flex-direction:column}
+  .doc-head{padding:14px 20px;border-bottom:1px solid #F0F4F8;display:flex;justify-content:space-between;align-items:center}
+  .doc-head h3{font-size:14px;font-weight:600}
+  .doc-head .path{font-size:12px;color:#9CA3AF;font-weight:400}
+  .btn{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
+  .btn-primary{background:#1D9E75;color:#fff}
+  .doc-table{width:100%;border-collapse:collapse}
+  .doc-table th{text-align:left;padding:10px 20px;font-size:12px;font-weight:600;color:#6B7280;background:#F9FAFB;border-bottom:1px solid #E5E7EB}
+  .doc-table td{padding:14px 20px;font-size:13px;border-bottom:1px solid #F0F4F8}
+  .doc-name{display:flex;align-items:center;gap:10px;font-weight:500}
+  .doc-icon{width:32px;height:32px;border-radius:6px;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .doc-meta{font-size:11px;color:#9CA3AF;margin-top:2px}
+  .status-tag{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600}
+  .status-ready{background:#D1FAE5;color:#065F46}
+  .status-processing{background:#FEF3C7;color:#92400E}
+  .chunks-bar{display:inline-block;width:80px;height:6px;background:#E5E7EB;border-radius:3px;overflow:hidden;vertical-align:middle;margin-right:6px}
+  .chunks-fill{height:100%;background:#1D9E75;border-radius:3px}
+  .action-link{color:#1D9E75;cursor:pointer;font-size:13px;margin-right:10px}
+  .action-link.danger{color:#EF4444}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-brand"><h1>☁️ 小云智服</h1><p>AI售后客服管理台</p></div>
+  <nav class="sidebar-nav">
+    <a>📊 数据总览</a>
+    <a>💬 会话管理</a>
+    <a>📋 工单中心</a>
+    <a class="active">📚 知识库</a>
+    <a>⚡ 快捷话术</a>
+    <a>📈 AI效果分析</a>
+    <a>⚙️ 系统设置</a>
+  </nav>
+</div>
+<div class="main">
+  <div class="topbar"><h2>文档分类管理</h2><div class="topbar-right"><span>云裳服饰</span><div class="avatar">云</div></div></div>
+  <div class="content">
+    <div class="tree-panel">
+      <div class="tree-head"><h3>分类目录</h3><span class="add-cat">+</span></div>
+      <div class="tree-body">
+        <div class="cat-item active"><span>📁 全部文档</span><span class="cat-count">4</span></div>
+        <div class="cat-item"><span class="sub">📄 退换货政策</span><span class="cat-count">1</span></div>
+        <div class="cat-item"><span class="sub">📄 物流说明</span><span class="cat-count">1</span></div>
+        <div class="cat-item"><span class="sub">📄 售后FAQ</span><span class="cat-count">1</span></div>
+        <div class="cat-item"><span class="sub">📄 客服话术</span><span class="cat-count">1</span></div>
+        <div class="cat-item" style="margin-top:8px;color:#9CA3AF"><span>+ 新建分类</span></div>
+      </div>
+    </div>
+    <div class="doc-panel">
+      <div class="doc-head">
+        <div><h3>退换货政策 <span class="path">/ 全部文档 / 退换货政策</span></h3></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-primary">+ 上传文档</button></div>
+      </div>
+      <table class="doc-table">
+        <thead><tr><th>文档名称</th><th>分类</th><th>分块数</th><th>状态</th><th>上传时间</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="doc-name"><div class="doc-icon">📄</div><div>云裳服饰售后政策.pdf<div class="doc-meta">2.4 MB · 12页</div></div></div></td>
+            <td>退换货政策</td>
+            <td><span class="chunks-bar"><span class="chunks-fill" style="width:80%"></span></span>48块</td>
+            <td><span class="status-tag status-ready">已就绪</span></td>
+            <td>2026-08-01</td>
+            <td><span class="action-link">预览</span><span class="action-link">重建索引</span><span class="action-link danger">删除</span></td>
+          </tr>
+          <tr>
+            <td><div class="doc-name"><div class="doc-icon">📄</div><div>物流时效说明.txt<div class="doc-meta">86 KB</div></div></div></td>
+            <td>物流说明</td>
+            <td><span class="chunks-bar"><span class="chunks-fill" style="width:40%"></span></span>12块</td>
+            <td><span class="status-tag status-ready">已就绪</span></td>
+            <td>2026-08-05</td>
+            <td><span class="action-link">预览</span><span class="action-link">重建索引</span><span class="action-link danger">删除</span></td>
+          </tr>
+          <tr>
+            <td><div class="doc-name"><div class="doc-icon">📄</div><div>售后常见问题FAQ.docx<div class="doc-meta">156 KB · 8页</div></div></div></td>
+            <td>售后FAQ</td>
+            <td><span class="chunks-bar"><span class="chunks-fill" style="width:60%"></span></span>24块</td>
+            <td><span class="status-tag status-ready">已就绪</span></td>
+            <td>2026-08-08</td>
+            <td><span class="action-link">预览</span><span class="action-link">重建索引</span><span class="action-link danger">删除</span></td>
+          </tr>
+          <tr>
+            <td><div class="doc-name"><div class="doc-icon">📄</div><div>客服标准话术库.pdf<div class="doc-meta">1.1 MB · 6页</div></div></div></td>
+            <td>客服话术</td>
+            <td><span class="chunks-bar"><span class="chunks-fill" style="width:30%"></span></span>8块</td>
+            <td><span class="status-tag status-processing">解析中...</span></td>
+            <td>2026-08-14</td>
+            <td><span class="action-link">取消</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>

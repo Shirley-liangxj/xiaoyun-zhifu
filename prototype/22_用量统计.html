@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云智服 · 用量统计</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#F0F4F8;color:#1F2937;min-height:100vh;display:flex}
+  .sidebar{position:fixed;left:0;top:0;width:220px;height:100vh;background:#1F2937;z-index:100;display:flex;flex-direction:column}
+  .sidebar-brand{padding:24px 20px 28px}
+  .sidebar-brand h1{color:#fff;font-size:20px;font-weight:700}
+  .sidebar-brand p{color:#9CA3AF;font-size:12px;margin-top:4px}
+  .sidebar-nav{display:flex;flex-direction:column;gap:2px;flex:1}
+  .sidebar-nav a{display:flex;align-items:center;gap:10px;padding:11px 20px;font-size:14px;color:#D1D5DB;cursor:pointer;text-decoration:none}
+  .sidebar-nav a:hover{background:rgba(255,255,255,0.06);color:#fff}
+  .sidebar-nav a.active{background:#1D9E75;color:#fff;border-left:3px solid #5DCAA5}
+  .main{margin-left:220px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+  .topbar{height:60px;background:#fff;border-bottom:1px solid #E5E7EB;display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+  .topbar h2{font-size:18px;font-weight:700}
+  .topbar-right{display:flex;align-items:center;gap:14px;font-size:13px;color:#6B7280}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#1D9E75;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+  .content{padding:24px;flex:1}
+  .plan-card{background:linear-gradient(135deg,#1D9E75,#0F6E56);border-radius:16px;padding:24px;color:#fff;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
+  .plan-name{font-size:20px;font-weight:700;margin-bottom:4px}
+  .plan-desc{font-size:13px;opacity:0.85}
+  .plan-btn{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:8px 18px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600}
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  .stat-card{background:#fff;border-radius:12px;padding:18px 20px;border:1px solid #E5E7EB}
+  .stat-label{font-size:12px;color:#6B7280;margin-bottom:8px}
+  .stat-value{font-size:26px;font-weight:700}
+  .stat-sub{font-size:12px;color:#9CA3AF;margin-top:4px}
+  .progress-wrap{margin-top:8px}
+  .progress-bar{height:6px;background:#E5E7EB;border-radius:3px;overflow:hidden}
+  .progress-fill{height:100%;background:#1D9E75;border-radius:3px}
+  .progress-fill.warn{background:#F59E0B}
+  .card{background:#fff;border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;margin-bottom:20px}
+  .card-head{padding:16px 20px;border-bottom:1px solid #F0F4F8}
+  .card-head h3{font-size:15px;font-weight:600}
+  .card-body{padding:20px}
+  .billing-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #F0F4F8;font-size:13px}
+  .billing-row:last-child{border:none;font-weight:700;font-size:15px;padding-top:16px}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-brand"><h1>☁️ 小云智服</h1><p>AI售后客服管理台</p></div>
+  <nav class="sidebar-nav">
+    <a>📊 数据总览</a>
+    <a>💬 会话管理</a>
+    <a>📋 工单中心</a>
+    <a>📚 知识库</a>
+    <a>⚡ 快捷话术</a>
+    <a>📈 AI效果分析</a>
+    <a class="active">⚙️ 系统设置</a>
+  </nav>
+</div>
+<div class="main">
+  <div class="topbar"><h2>用量统计</h2><div class="topbar-right"><span>云裳服饰</span><div class="avatar">云</div></div></div>
+  <div class="content">
+    <div class="plan-card">
+      <div><div class="plan-name">专业版 Professional</div><div class="plan-desc">¥299/月 · 无限问答 · 5个知识库 · 转人工 · 团队协作</div></div>
+      <button class="plan-btn">升级企业版</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">本月对话量</div>
+        <div class="stat-value">3,842</div>
+        <div class="stat-sub">较上月 ↑ 12.5%</div>
+        <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:38%"></div></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Token消耗</div>
+        <div class="stat-value">1.2M</div>
+        <div class="stat-sub">输入 0.8M / 输出 0.4M</div>
+        <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:24%"></div></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">知识库文档</div>
+        <div class="stat-value">4 / 5</div>
+        <div class="stat-sub">已用4个，剩余1个</div>
+        <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill warn" style="width:80%"></div></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">API调用次数</div>
+        <div class="stat-value">8,291</div>
+        <div class="stat-sub">平均2.2次/对话</div>
+        <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:17%"></div></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>每日用量趋势（近30天）</h3></div>
+      <div class="card-body">
+        <div style="height:160px;display:flex;align-items:flex-end;gap:4px;padding:10px 0">
+          <div style="flex:1;background:#E1F5EE;height:30%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:45%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:38%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:55%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:42%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:60%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:48%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:52%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:65%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:58%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:70%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:62%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:75%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#E1F5EE;height:68%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#1D9E75;height:82%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#1D9E75;height:72%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#1D9E75;height:88%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#1D9E75;height:78%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#1D9E75;height:92%;border-radius:3px 3px 0 0"></div>
+          <div style="flex:1;background:#1D9E75;height:85%;border-radius:3px 3px 0 0"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#9CA3AF;margin-top:8px"><span>7/17</span><span>7/24</span><span>7/31</span><span>8/7</span><span>8/14</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>本月账单明细</h3></div>
+      <div class="card-body">
+        <div class="billing-row"><span>专业版月费</span><span>¥299.00</span></div>
+        <div class="billing-row"><span>超额对话费（842次 × ¥0.05）</span><span>¥42.10</span></div>
+        <div class="billing-row"><span>Token超额费</span><span>¥0.00（含在套餐内）</span></div>
+        <div class="billing-row"><span>优惠券抵扣</span><span style="color:#10B981">-¥30.00</span></div>
+        <div class="billing-row"><span>合计（8月）</span><span>¥311.10</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

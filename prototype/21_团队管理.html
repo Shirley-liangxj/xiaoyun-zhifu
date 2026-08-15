@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云智服 · 团队管理</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#F0F4F8;color:#1F2937;min-height:100vh;display:flex}
+  .sidebar{position:fixed;left:0;top:0;width:220px;height:100vh;background:#1F2937;z-index:100;display:flex;flex-direction:column}
+  .sidebar-brand{padding:24px 20px 28px}
+  .sidebar-brand h1{color:#fff;font-size:20px;font-weight:700}
+  .sidebar-brand p{color:#9CA3AF;font-size:12px;margin-top:4px}
+  .sidebar-nav{display:flex;flex-direction:column;gap:2px;flex:1}
+  .sidebar-nav a{display:flex;align-items:center;gap:10px;padding:11px 20px;font-size:14px;color:#D1D5DB;cursor:pointer;text-decoration:none}
+  .sidebar-nav a:hover{background:rgba(255,255,255,0.06);color:#fff}
+  .sidebar-nav a.active{background:#1D9E75;color:#fff;border-left:3px solid #5DCAA5}
+  .main{margin-left:220px;flex:1;min-height:100vh;display:flex;flex-direction:column}
+  .topbar{height:60px;background:#fff;border-bottom:1px solid #E5E7EB;display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+  .topbar h2{font-size:18px;font-weight:700}
+  .topbar-right{display:flex;align-items:center;gap:14px;font-size:13px;color:#6B7280}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#1D9E75;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+  .content{padding:24px;flex:1}
+  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  .stat-card{background:#fff;border-radius:12px;padding:16px 20px;border:1px solid #E5E7EB}
+  .stat-label{font-size:12px;color:#6B7280;margin-bottom:6px}
+  .stat-value{font-size:24px;font-weight:700}
+  .stat-value.green{color:#1D9E75}
+  .stat-value.orange{color:#F59E0B}
+  .card{background:#fff;border-radius:12px;border:1px solid #E5E7EB;overflow:hidden}
+  .card-head{padding:16px 20px;border-bottom:1px solid #F0F4F8;display:flex;justify-content:space-between;align-items:center}
+  .card-head h3{font-size:15px;font-weight:600}
+  .btn{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
+  .btn-primary{background:#1D9E75;color:#fff}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;padding:12px 20px;font-size:12px;font-weight:600;color:#6B7280;background:#F9FAFB;border-bottom:1px solid #E5E7EB}
+  td{padding:14px 20px;font-size:13px;border-bottom:1px solid #F0F4F8}
+  tr:last-child td{border-bottom:none}
+  .member{display:flex;align-items:center;gap:10px}
+  .member-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff}
+  .member-name{font-weight:600}
+  .member-email{font-size:12px;color:#9CA3AF}
+  .role-tag{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600}
+  .role-admin{background:#EDE9FE;color:#6D28D9}
+  .role-agent{background:#E1F5EE;color:#0F6E56}
+  .role-viewer{background:#F3F4F6;color:#6B7280}
+  .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+  .status-online{background:#10B981}
+  .status-offline{background:#D1D5DB}
+  .action-link{color:#1D9E75;cursor:pointer;font-size:13px;margin-right:12px}
+  .action-link.danger{color:#EF4444}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-brand"><h1>☁️ 小云智服</h1><p>AI售后客服管理台</p></div>
+  <nav class="sidebar-nav">
+    <a>📊 数据总览</a>
+    <a>💬 会话管理</a>
+    <a>📋 工单中心</a>
+    <a>📚 知识库</a>
+    <a>⚡ 快捷话术</a>
+    <a>📈 AI效果分析</a>
+    <a class="active">⚙️ 系统设置</a>
+  </nav>
+</div>
+<div class="main">
+  <div class="topbar"><h2>团队管理</h2><div class="topbar-right"><span>云裳服饰</span><div class="avatar">云</div></div></div>
+  <div class="content">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">团队成员</div><div class="stat-value">5</div></div>
+      <div class="stat-card"><div class="stat-label">在线客服</div><div class="stat-value green">3</div></div>
+      <div class="stat-card"><div class="stat-label">今日接待</div><div class="stat-value">128</div></div>
+      <div class="stat-card"><div class="stat-label">平均响应</div><div class="stat-value orange">42s</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>成员列表</h3><button class="btn btn-primary">+ 邀请成员</button></div>
+      <table>
+        <thead><tr><th>成员</th><th>角色</th><th>状态</th><th>今日接待</th><th>加入时间</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="member"><div class="member-avatar" style="background:#1D9E75">云</div><div><div class="member-name">云裳服饰</div><div class="member-email">admin@yunshang.com</div></div></div></td>
+            <td><span class="role-tag role-admin">管理员</span></td>
+            <td><span class="status-dot status-online"></span>在线</td>
+            <td>—</td>
+            <td>2026-06-01</td>
+            <td><span class="action-link">编辑</span></td>
+          </tr>
+          <tr>
+            <td><div class="member"><div class="member-avatar" style="background:#3B82F6">小</div><div><div class="member-name">小美客服</div><div class="member-email">xiaomei@yunshang.com</div></div></div></td>
+            <td><span class="role-tag role-agent">客服</span></td>
+            <td><span class="status-dot status-online"></span>在线</td>
+            <td>46</td>
+            <td>2026-06-15</td>
+            <td><span class="action-link">编辑</span><span class="action-link danger">移除</span></td>
+          </tr>
+          <tr>
+            <td><div class="member"><div class="member-avatar" style="background:#F59E0B">阿</div><div><div class="member-name">阿杰客服</div><div class="member-email">ajie@yunshang.com</div></div></div></td>
+            <td><span class="role-tag role-agent">客服</span></td>
+            <td><span class="status-dot status-online"></span>在线</td>
+            <td>52</td>
+            <td>2026-07-01</td>
+            <td><span class="action-link">编辑</span><span class="action-link danger">移除</span></td>
+          </tr>
+          <tr>
+            <td><div class="member"><div class="member-avatar" style="background:#8B5CF6">丽</div><div><div class="member-name">丽丽客服</div><div class="member-email">lili@yunshang.com</div></div></div></td>
+            <td><span class="role-tag role-agent">客服</span></td>
+            <td><span class="status-dot status-offline"></span>离线</td>
+            <td>30</td>
+            <td>2026-07-10</td>
+            <td><span class="action-link">编辑</span><span class="action-link danger">移除</span></td>
+          </tr>
+          <tr>
+            <td><div class="member"><div class="member-avatar" style="background:#6B7280">实</div><div><div class="member-name">实习生小王</div><div class="member-email">wang@yunshang.com</div></div></div></td>
+            <td><span class="role-tag role-viewer">只读</span></td>
+            <td><span class="status-dot status-offline"></span>离线</td>
+            <td>0</td>
+            <td>2026-08-01</td>
+            <td><span class="action-link">编辑</span><span class="action-link danger">移除</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>
