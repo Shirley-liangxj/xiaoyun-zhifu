@@ -4,6 +4,7 @@ import {
   sendMessage, closeConversation, triggerAiSuggest,
   acceptSuggestion, rejectSuggestion,
 } from '../api/conversations'
+import { listQuickReplies, useQuickReply } from '../api/quickReplies'
 
 /** 置信度等级与颜色 */
 function confidenceLevel(score) {
@@ -82,6 +83,8 @@ export default function Conversations() {
   const [editSuggestion, setEditSuggestion] = useState(null)
   const [editContent, setEditContent] = useState('')
   const [newForm, setNewForm] = useState({ customer_name: '', channel: 'web' })
+  const [showQuickReplies, setShowQuickReplies] = useState(false)
+  const [quickReplies, setQuickReplies] = useState([])
   const messagesEndRef = useRef(null)
 
   const loadList = async () => {
@@ -203,6 +206,18 @@ export default function Conversations() {
     loadConversation(activeId)
   }
 
+  const openQuickReplies = async () => {
+    const res = await listQuickReplies()
+    setQuickReplies(res.data)
+    setShowQuickReplies(true)
+  }
+
+  const insertQuickReply = async (reply) => {
+    setInput(reply.content)
+    await useQuickReply(reply.id)
+    setShowQuickReplies(false)
+  }
+
   const roleLabel = { customer: '客户', agent: '坐席' }
   const roleColor = {
     customer: 'bg-blue-50 text-blue-800',
@@ -307,6 +322,10 @@ export default function Conversations() {
                   placeholder="输入回复内容..."
                   className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                <button type="button" onClick={openQuickReplies}
+                  className="px-3 py-2 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50">
+                  话术
+                </button>
                 <button type="button" onClick={handleSimulateCustomer} disabled={sending}
                   className="px-3 py-2 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-60">
                   模拟客户
@@ -353,6 +372,30 @@ export default function Conversations() {
                 <button type="submit" className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark">创建</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 快捷话术选择 */}
+      {showQuickReplies && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-gray-800">选择话术</h3>
+              <button onClick={() => setShowQuickReplies(false)} className="text-gray-400 text-sm">关闭</button>
+            </div>
+            <div className="space-y-2">
+              {quickReplies.map((r) => (
+                <button key={r.id} onClick={() => insertQuickReply(r)}
+                  className="w-full text-left p-3 border border-gray-100 rounded-lg hover:bg-primary-light hover:border-primary transition-colors">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">{r.category}</span>
+                    <span className="text-sm font-medium text-gray-700">{r.title}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 line-clamp-2">{r.content}</p>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

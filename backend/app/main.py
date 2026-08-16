@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, conversations, knowledge, stats, tickets, users
+from app.routers import auth, conversations, eval, knowledge, public_chat, quick_replies, settings, stats, tickets, users
 
 
 @asynccontextmanager
@@ -38,6 +38,10 @@ app.include_router(conversations.router)
 app.include_router(tickets.router)
 app.include_router(knowledge.router)
 app.include_router(stats.router)
+app.include_router(eval.router)
+app.include_router(settings.router)
+app.include_router(public_chat.router)
+app.include_router(quick_replies.router)
 
 
 @app.get("/", tags=["健康检查"])

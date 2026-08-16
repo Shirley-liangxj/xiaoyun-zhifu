@@ -17,6 +17,8 @@ from app.schemas.conversation import (
   MessageOut,
 )
 from app.services.ai_suggestion import generate_suggestion
+from app.services.knowledge_gap import record_knowledge_gap
+from app.services.settings import get_or_create_settings
 
 router = APIRouter(prefix="/api/conversations", tags=["会话"])
 
@@ -135,10 +137,13 @@ def send_message(
 
   # 客户消息后自动生成 AI 回复建议
   if body.role == "customer":
-    try:
-      generate_suggestion(db, conv, body.content)
-    except Exception:
-      pass  # AI 生成失败不阻断消息发送
+    settings = get_or_create_settings(db, current_user.company_id)
+    if settings.auto_suggest:
+      try:
+        suggestion = generate_suggestion(db, conv, body.content)
+        record_knowledge_gap(db, conv.company_id, body.content, suggestion.confidence or 0, settings.confidence_threshold)
+      except Exception:
+        pass
 
   return msg
 

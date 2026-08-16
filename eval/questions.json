@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "description": "服饰电商售后客服评测集 - 17题",
+  "questions": [
+    {
+      "id": 1,
+      "category": "退换货",
+      "question": "我买的衣服尺码不合适，可以换货吗？",
+      "expected_keywords": ["换货", "尺码", "7天"]
+    },
+    {
+      "id": 2,
+      "category": "退换货",
+      "question": "退货需要自己付运费吗？",
+      "expected_keywords": ["运费", "退货"]
+    },
+    {
+      "id": 3,
+      "category": "退换货",
+      "question": "衣服洗了一次还能退吗？",
+      "expected_keywords": ["洗", "退", "吊牌"]
+    },
+    {
+      "id": 4,
+      "category": "物流",
+      "question": "我的快递什么时候能到？",
+      "expected_keywords": ["物流", "发货", "快递"]
+    },
+    {
+      "id": 5,
+      "category": "物流",
+      "question": "可以改收货地址吗？",
+      "expected_keywords": ["地址", "修改"]
+    },
+    {
+      "id": 6,
+      "category": "尺码",
+      "question": "这件衣服偏大还是偏小？",
+      "expected_keywords": ["尺码", "标准"]
+    },
+    {
+      "id": 7,
+      "category": "尺码",
+      "question": "我身高165体重55kg穿什么码？",
+      "expected_keywords": ["尺码", "推荐"]
+    },
+    {
+      "id": 8,
+      "category": "支付",
+      "question": "退款多久能到账？",
+      "expected_keywords": ["退款", "到账"]
+    },
+    {
+      "id": 9,
+      "category": "支付",
+      "question": "可以用花呗付款吗？",
+      "expected_keywords": ["支付", "花呗"]
+    },
+    {
+      "id": 10,
+      "category": "售后政策",
+      "question": "衣服有质量问题怎么赔偿？",
+      "expected_keywords": ["质量", "赔偿", "售后"]
+    },
+    {
+      "id": 11,
+      "category": "售后政策",
+      "question": "超过7天还能退货吗？",
+      "expected_keywords": ["7天", "退货"]
+    },
+    {
+      "id": 12,
+      "category": "通用",
+      "question": "你们店铺有没有优惠券？",
+      "expected_keywords": ["优惠"]
+    },
+    {
+      "id": 13,
+      "category": "通用",
+      "question": "这件衣服是什么面料的？",
+      "expected_keywords": ["面料", "材质"]
+    },
+    {
+      "id": 14,
+      "category": "退换货",
+      "question": "换货需要把赠品一起退回吗？",
+      "expected_keywords": ["赠品", "退回"]
+    },
+    {
+      "id": 15,
+      "category": "物流",
+      "question": "发什么快递？可以指定顺丰吗？",
+      "expected_keywords": ["快递", "顺丰"]
+    },
+    {
+      "id": 16,
+      "category": "尺码",
+      "question": "童装尺码怎么选？",
+      "expected_keywords": ["童装", "尺码"]
+    },
+    {
+      "id": 17,
+      "category": "售后政策",
+      "question": "定制款可以退吗？",
+      "expected_keywords": ["定制", "退"]
+    }
+  ]
+}

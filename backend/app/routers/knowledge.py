@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import KnowledgeDoc, User
+from app.models import KnowledgeDoc, KnowledgeGap, User
 from app.schemas.knowledge import (
   KnowledgeDocCreate,
   KnowledgeDocOut,
@@ -13,6 +13,7 @@ from app.schemas.knowledge import (
   KnowledgeSearchResponse,
   KnowledgeSearchResult,
 )
+from app.schemas.knowledge_gap import KnowledgeGapOut, KnowledgeGapResolve
 from app.services.rag import index_document, rebuild_company_index, remove_document_index, search_knowledge
 
 router = APIRouter(prefix="/api/knowledge", tags=["知识库"])
@@ -157,3 +158,57 @@ def delete_doc(
   db.delete(doc)
   db.commit()
   return {"message": "文档已删除", "id": doc_id}
+
+
+@router.get("/gaps", response_model=list[KnowledgeGapOut], summary="获取知识缺口列表")
+def list_gaps(
+  status_filter: str | None = None,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  """获取未命中或低置信度的问题列表"""
+  query = db.query(KnowledgeGap).filter(KnowledgeGap.company_id == current_user.company_id)
+  if status_filter:
+    query = query.filter(KnowledgeGap.status == status_filter)
+  return query.order_by(KnowledgeGap.hit_count.desc()).all()
+
+
+@router.post("/gaps/{gap_id}/resolve", response_model=KnowledgeGapOut, summary="解决知识缺口")
+def resolve_gap(
+  gap_id: int,
+  body: KnowledgeGapResolve,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  """标记知识缺口已解决，并记录补充答案"""
+  gap = db.query(KnowledgeGap).filter(
+    KnowledgeGap.id == gap_id,
+    KnowledgeGap.company_id == current_user.company_id,
+  ).first()
+  if not gap:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识缺口不存在")
+
+  gap.status = "resolved"
+  gap.suggested_answer = body.suggested_answer
+  db.commit()
+  db.refresh(gap)
+  return gap
+
+
+@router.post("/gaps/{gap_id}/ignore", summary="忽略知识缺口")
+def ignore_gap(
+  gap_id: int,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  """忽略该知识缺口"""
+  gap = db.query(KnowledgeGap).filter(
+    KnowledgeGap.id == gap_id,
+    KnowledgeGap.company_id == current_user.company_id,
+  ).first()
+  if not gap:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识缺口不存在")
+
+  gap.status = "ignored"
+  db.commit()
+  return {"message": "已忽略", "id": gap_id}

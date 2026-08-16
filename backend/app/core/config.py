@@ -16,9 +16,12 @@ class Settings(BaseSettings):
   # 智谱 AI
   LLM_API_KEY: str = ""
   LLM_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
-  EMBEDDING_MODEL: str = "embedding-2"
-  EMBEDDING_DIM: int = 1024  # embedding-2 向量维度
+  EMBEDDING_MODEL: str = "embedding-3"
+  EMBEDDING_DIM: int = 2048
   LLM_MODEL: str = "glm-4-flash"
+
+  # 买家端默认租户
+  DEFAULT_COMPANY_ID: int = 1
 
   # FAISS 索引存储目录
   FAISS_DATA_DIR: str = "./data/faiss"

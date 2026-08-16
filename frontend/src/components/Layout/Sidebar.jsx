@@ -6,6 +6,8 @@ const navItems = [
   { to: '/conversations', label: '会话管理', icon: '💬' },
   { to: '/tickets', label: '工单中心', icon: '📋' },
   { to: '/knowledge', label: '知识库', icon: '📚' },
+  { to: '/quick-replies', label: '快捷话术', icon: '💡' },
+  { to: '/evaluation', label: 'RAG评测', icon: '📊' },
   { to: '/settings', label: '系统设置', icon: '⚙️' },
 ]
 
@@ -40,7 +42,8 @@ export default function Sidebar() {
 
       {/* 底部版本信息 */}
       <div className="px-5 py-4 border-t border-gray-700">
-        <p className="text-gray-500 text-xs">v1.0.0</p>
+        <p className="text-gray-500 text-xs">v1.1.0</p>
+        <a href="/chat" target="_blank" className="text-xs text-primary-light hover:underline mt-1 block">买家端 ↗</a>
       </div>
     </aside>
   )

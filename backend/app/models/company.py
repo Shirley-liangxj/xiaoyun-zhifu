@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -10,8 +10,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 if TYPE_CHECKING:
+  from app.models.company_settings import CompanySettings
   from app.models.conversation import Conversation
   from app.models.knowledge import KnowledgeDoc
+  from app.models.knowledge_gap import KnowledgeGap
+  from app.models.quick_reply import QuickReply
   from app.models.ticket import Ticket
   from app.models.user import User
 
@@ -31,3 +34,6 @@ class Company(Base):
   knowledge_docs: Mapped[List[KnowledgeDoc]] = relationship("KnowledgeDoc", back_populates="company")
   conversations: Mapped[List[Conversation]] = relationship("Conversation", back_populates="company")
   tickets: Mapped[List[Ticket]] = relationship("Ticket", back_populates="company")
+  knowledge_gaps: Mapped[List[KnowledgeGap]] = relationship("KnowledgeGap", back_populates="company")
+  quick_replies: Mapped[List[QuickReply]] = relationship("QuickReply", back_populates="company")
+  settings: Mapped[Optional["CompanySettings"]] = relationship("CompanySettings", back_populates="company", uselist=False)
