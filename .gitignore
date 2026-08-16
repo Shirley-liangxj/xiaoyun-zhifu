@@ -8,12 +8,15 @@ env/
 
 # 环境变量（含密钥，不提交）
 .env
+.env.local
 backend/.env
 frontend/.env
 
 # 数据库与向量索引数据
 *.db
+*.sqlite3
 backend/data/
+knowledge/
 
 # Node
 node_modules/
@@ -24,10 +27,20 @@ frontend/.vite/
 .vscode/
 .idea/
 *.swp
+*.swo
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Data (large files)
+*.pdf
 
 # 日志
 *.log
+logs/
 
-# 系统
-Thumbs.db
+# Temp
+_chrome_tmp/
+_chrome_tmp_*/
+*_tmp/
