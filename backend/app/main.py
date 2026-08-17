@@ -1,4 +1,5 @@
 """小云智服 - FastAPI 应用入口"""
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,14 +23,24 @@ app = FastAPI(
   lifespan=lifespan,
 )
 
-# CORS 配置 - 允许前端开发服务器跨域
-app.add_middleware(
-  CORSMiddleware,
-  allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-  allow_credentials=True,
-  allow_methods=["*"],
-  allow_headers=["*"],
-)
+# CORS 配置 - 支持生产环境域名（默认放开所有来源，可通过 CORS_ORIGINS 环境变量限制）
+cors_origins = os.getenv("CORS_ORIGINS", "*")
+if cors_origins == "*":
+  app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+  )
+else:
+  app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins.split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+  )
 
 # 注册路由
 app.include_router(auth.router)
