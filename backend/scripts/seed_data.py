@@ -19,6 +19,7 @@ from app.services.rag import rebuild_company_index
 # 清除旧 FAISS 索引（embedding 维度可能变化）
 import shutil
 from app.core.config import settings
+DEMO_PASSWORD = os.getenv("XIAOYUN_DEMO_PASSWORD", "ChangeMeBeforeDeploy!")
 if os.path.exists(settings.FAISS_DATA_DIR):
   shutil.rmtree(settings.FAISS_DATA_DIR)
 
@@ -36,7 +37,7 @@ def ensure_company_and_user(db):
     user = User(
       username="testadmin",
       email="admin@yunshang.com",
-      hashed_password=hash_password("123456"),
+      hashed_password=hash_password("DEMO_PASSWORD"),
       display_name="张客服",
       role="admin",
       company_id=company.id,
@@ -186,7 +187,7 @@ def main():
     print(f"  索引完成: {count} 篇")
 
     print("=== 初始化完成 ===")
-    print("  账号: testadmin / 123456")
+    print("  账号: testadmin （密码见环境变量 XIAOYUN_DEMO_PASSWORD，部署前请修改默认密码）")
     print("  买家端: http://localhost:5173/chat")
   finally:
     db.close()
