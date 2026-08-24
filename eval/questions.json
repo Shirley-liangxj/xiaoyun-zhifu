@@ -1,108 +1,542 @@
 {
-  "version": "1.0",
-  "description": "服饰电商售后客服评测集 - 17题",
+  "version": "2.0",
+  "description": "服饰电商售后客服评测集 - 54题（含原17题），按意图分层，含 expected_behavior / difficulty",
   "questions": [
     {
       "id": 1,
       "category": "退换货",
       "question": "我买的衣服尺码不合适，可以换货吗？",
-      "expected_keywords": ["换货", "尺码", "7天"]
+      "expected_keywords": ["换货", "尺码", "7天"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
     },
     {
       "id": 2,
       "category": "退换货",
       "question": "退货需要自己付运费吗？",
-      "expected_keywords": ["运费", "退货"]
+      "expected_keywords": ["运费", "退货"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
     },
     {
       "id": 3,
       "category": "退换货",
       "question": "衣服洗了一次还能退吗？",
-      "expected_keywords": ["洗", "退", "吊牌"]
+      "expected_keywords": ["洗", "退", "吊牌"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
     },
     {
       "id": 4,
       "category": "物流",
       "question": "我的快递什么时候能到？",
-      "expected_keywords": ["物流", "发货", "快递"]
+      "expected_keywords": ["物流", "发货", "快递"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
     },
     {
       "id": 5,
       "category": "物流",
       "question": "可以改收货地址吗？",
-      "expected_keywords": ["地址", "修改"]
+      "expected_keywords": ["地址", "修改"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 6,
       "category": "尺码",
       "question": "这件衣服偏大还是偏小？",
-      "expected_keywords": ["尺码", "标准"]
+      "expected_keywords": ["尺码", "标准"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 7,
       "category": "尺码",
       "question": "我身高165体重55kg穿什么码？",
-      "expected_keywords": ["尺码", "推荐"]
+      "expected_keywords": ["尺码", "推荐"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 8,
       "category": "支付",
       "question": "退款多久能到账？",
-      "expected_keywords": ["退款", "到账"]
+      "expected_keywords": ["退款", "到账"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
     },
     {
       "id": 9,
       "category": "支付",
       "question": "可以用花呗付款吗？",
-      "expected_keywords": ["支付", "花呗"]
+      "expected_keywords": ["支付", "花呗"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 10,
       "category": "售后政策",
       "question": "衣服有质量问题怎么赔偿？",
-      "expected_keywords": ["质量", "赔偿", "售后"]
+      "expected_keywords": ["质量", "赔偿", "售后"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 11,
       "category": "售后政策",
       "question": "超过7天还能退货吗？",
-      "expected_keywords": ["7天", "退货"]
+      "expected_keywords": ["7天", "退货"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
     },
     {
       "id": 12,
       "category": "通用",
       "question": "你们店铺有没有优惠券？",
-      "expected_keywords": ["优惠"]
+      "expected_keywords": ["优惠"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 13,
       "category": "通用",
       "question": "这件衣服是什么面料的？",
-      "expected_keywords": ["面料", "材质"]
+      "expected_keywords": ["面料", "材质"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 14,
       "category": "退换货",
       "question": "换货需要把赠品一起退回吗？",
-      "expected_keywords": ["赠品", "退回"]
+      "expected_keywords": ["赠品", "退回"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 15,
       "category": "物流",
       "question": "发什么快递？可以指定顺丰吗？",
-      "expected_keywords": ["快递", "顺丰"]
+      "expected_keywords": ["快递", "顺丰"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 16,
       "category": "尺码",
       "question": "童装尺码怎么选？",
-      "expected_keywords": ["童装", "尺码"]
+      "expected_keywords": ["童装", "尺码"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
     },
     {
       "id": 17,
       "category": "售后政策",
       "question": "定制款可以退吗？",
-      "expected_keywords": ["定制", "退"]
+      "expected_keywords": ["定制", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 18,
+      "category": "退换货",
+      "question": "7天无理由退货需要吊牌完整吗？",
+      "expected_keywords": ["吊牌", "7天", "退货"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
+    },
+    {
+      "id": 19,
+      "category": "退换货",
+      "question": "换货的话运费谁承担？",
+      "expected_keywords": ["换货", "运费"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 20,
+      "category": "退换货",
+      "question": "内衣可以无理由退货吗？",
+      "expected_keywords": ["内衣", "无理由", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 21,
+      "category": "退换货",
+      "question": "吊牌剪了但衣服有质量问题还能退吗？",
+      "expected_keywords": ["吊牌", "质量", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 22,
+      "category": "退换货",
+      "question": "预售商品支持7天无理由退货吗？",
+      "expected_keywords": ["预售", "退货"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 23,
+      "category": "退换货",
+      "question": "退货流程是怎样的？",
+      "expected_keywords": ["退货", "流程", "审核"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
+    },
+    {
+      "id": 24,
+      "category": "物流",
+      "question": "下单后多久发货？",
+      "expected_keywords": ["发货", "48", "小时"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
+    },
+    {
+      "id": 25,
+      "category": "物流",
+      "question": "江浙沪大概几天能收到货？",
+      "expected_keywords": ["江浙沪", "天", "送达"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 26,
+      "category": "物流",
+      "question": "大促期间发货会延迟吗？",
+      "expected_keywords": ["大促", "发货", "延迟"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 27,
+      "category": "物流",
+      "question": "包裹一直显示运输中可以催物流吗？",
+      "expected_keywords": ["物流", "运输", "查询"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 28,
+      "category": "物流",
+      "question": "已经发货了还能改收货地址吗？",
+      "expected_keywords": ["发货", "地址", "改"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 29,
+      "category": "物流",
+      "question": "缺货了什么时候能补发？",
+      "expected_keywords": ["缺货", "补发"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 30,
+      "category": "物流",
+      "question": "可以发顺丰到付吗？",
+      "expected_keywords": ["顺丰", "快递"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 31,
+      "category": "质量",
+      "question": "收到的衣服有色差算质量问题吗？",
+      "expected_keywords": ["色差", "质量"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 32,
+      "category": "质量",
+      "question": "衣服开线了可以退吗？",
+      "expected_keywords": ["开线", "质量", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
+    },
+    {
+      "id": 33,
+      "category": "质量",
+      "question": "拉链坏了怎么处理？",
+      "expected_keywords": ["拉链", "质量"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 34,
+      "category": "质量",
+      "question": "质量问题退货运费谁出？",
+      "expected_keywords": ["质量", "运费", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 35,
+      "category": "质量",
+      "question": "洗后缩水了能赔偿吗？",
+      "expected_keywords": ["缩水", "质量"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 36,
+      "category": "质量",
+      "question": "收到衣服有破洞怎么办？",
+      "expected_keywords": ["破洞", "质量", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
+    },
+    {
+      "id": 37,
+      "category": "质量",
+      "question": "质量问题需要提供什么凭证？",
+      "expected_keywords": ["质量", "照片", "凭证"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 38,
+      "category": "质量",
+      "question": "签收30天内发现质量问题还能退吗？",
+      "expected_keywords": ["30天", "质量", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 39,
+      "category": "质量",
+      "question": "线头多算质量问题吗？",
+      "expected_keywords": ["线头", "质量"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 40,
+      "category": "质量",
+      "question": "衣服掉色严重可以退吗？",
+      "expected_keywords": ["掉色", "质量", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 41,
+      "category": "支付",
+      "question": "退款是原路返回吗？",
+      "expected_keywords": ["退款", "原路"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
+    },
+    {
+      "id": 42,
+      "category": "支付",
+      "question": "银行卡退款大概几个工作日到账？",
+      "expected_keywords": ["银行卡", "退款", "工作日"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 43,
+      "category": "支付",
+      "question": "商家签收退货后多久发起退款？",
+      "expected_keywords": ["签收", "退款", "3个"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 44,
+      "category": "支付",
+      "question": "支持微信支付吗？",
+      "expected_keywords": ["微信", "支付"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
+    },
+    {
+      "id": 45,
+      "category": "支付",
+      "question": "价保政策是什么？下单后降价能退差价吗？",
+      "expected_keywords": ["价保", "差价"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 46,
+      "category": "支付",
+      "question": "退款审核要多久？",
+      "expected_keywords": ["退款", "审核"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 47,
+      "category": "支付",
+      "question": "支付宝退款一般几天到账？",
+      "expected_keywords": ["支付宝", "退款", "到账"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 48,
+      "category": "支付",
+      "question": "大促期间价保适用吗？",
+      "expected_keywords": ["大促", "价保"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 49,
+      "category": "通用",
+      "question": "会员有什么权益？",
+      "expected_keywords": ["会员", "权益"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 50,
+      "category": "通用",
+      "question": "非工作时间留言什么时候处理？",
+      "expected_keywords": ["非工作", "留言", "处理"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 51,
+      "category": "通用",
+      "question": "怎么联系人工客服？",
+      "expected_keywords": ["人工", "客服", "转人工"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
+    },
+    {
+      "id": 52,
+      "category": "通用",
+      "question": "特价清仓商品能退吗？",
+      "expected_keywords": ["清仓", "特价", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 53,
+      "category": "通用",
+      "question": "泳装可以7天无理由退货吗？",
+      "expected_keywords": ["泳装", "无理由", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 54,
+      "category": "通用",
+      "question": "袜子支持无理由退货吗？",
+      "expected_keywords": ["袜子", "无理由", "退"],
+      "expected_behavior": "answer",
+      "difficulty": "hard"
+    },
+    {
+      "id": 55,
+      "category": "通用",
+      "question": "欢迎语里说的云裳服饰主要卖什么？",
+      "expected_keywords": ["服饰", "售后"],
+      "expected_behavior": "answer",
+      "difficulty": "easy"
+    },
+    {
+      "id": 56,
+      "category": "通用",
+      "question": "预售商品什么时候发货？",
+      "expected_keywords": ["预售", "发货"],
+      "expected_behavior": "answer",
+      "difficulty": "normal"
+    },
+    {
+      "id": 57,
+      "category": "超出范围",
+      "question": "帮我写一段 Python 排序算法代码",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "easy"
+    },
+    {
+      "id": 58,
+      "category": "超出范围",
+      "question": "今天北京天气怎么样？",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "easy"
+    },
+    {
+      "id": 59,
+      "category": "超出范围",
+      "question": "你们卖不卖宠物狗粮？",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "normal"
+    },
+    {
+      "id": 60,
+      "category": "超出范围",
+      "question": "推荐一家上海好吃的火锅店",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "normal"
+    },
+    {
+      "id": 61,
+      "category": "超出范围",
+      "question": "比特币现在多少钱一枚？",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "hard"
+    },
+    {
+      "id": 62,
+      "category": "超出范围",
+      "question": "帮我翻译这段英文：Hello world",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "easy"
+    },
+    {
+      "id": 63,
+      "category": "超出范围",
+      "question": "王者荣耀怎么快速上分？",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "normal"
+    },
+    {
+      "id": 64,
+      "category": "超出范围",
+      "question": "明天会下雨吗？",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "easy"
+    },
+    {
+      "id": 65,
+      "category": "超出范围",
+      "question": "写一首关于春天的诗",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "hard"
+    },
+    {
+      "id": 66,
+      "category": "超出范围",
+      "question": "A股今天大盘涨还是跌？",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "hard"
+    },
+    {
+      "id": 67,
+      "category": "超出范围",
+      "question": "帮我查一下12306余票",
+      "expected_keywords": [],
+      "expected_behavior": "transfer_human",
+      "difficulty": "normal"
     }
   ]
 }
