@@ -23,7 +23,7 @@ class CompanySettings(Base):
     Text, default="您好！我是智能客服小云，有什么可以帮您的？", comment="欢迎语"
   )
   confidence_threshold: Mapped[float] = mapped_column(
-    Float, default=0.4, comment="低于此置信度建议转人工"
+    Float, default=0.6, comment="低于此置信度建议转人工"
   )
   auto_suggest: Mapped[bool] = mapped_column(default=True, comment="客户消息后自动生成AI建议")
   reject_message: Mapped[Optional[str]] = mapped_column(

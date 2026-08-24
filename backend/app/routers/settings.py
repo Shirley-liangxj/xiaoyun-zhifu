@@ -1,5 +1,5 @@
 """系统设置路由"""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -8,7 +8,9 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import KnowledgeDoc, User
 from app.schemas.settings import CompanyInfoUpdate, SettingsOut, SettingsUpdate, SystemStatusOut
+from app.services.bootstrap import reset_demo_data_for_company
 from app.services.embedding import embedding_service
+from app.services.errors import ExternalServiceError
 from app.services.rag import rebuild_company_index
 from app.services.settings import get_or_create_settings
 
@@ -71,8 +73,10 @@ def test_api(current_user: User = Depends(get_current_user)):
   try:
     embedding_service.embed_text("测试连接")
     return {"status": "ok", "message": "API 连接正常"}
-  except Exception as e:
+  except (ValueError, ExternalServiceError) as e:
     return {"status": "error", "message": str(e)}
+  except Exception as e:
+    return {"status": "error", "message": f"连接失败: {e}"}
 
 
 @router.post("/reindex", summary="重建知识库索引")
@@ -80,8 +84,10 @@ def reindex(current_user: User = Depends(get_current_user), db: Session = Depend
   try:
     count = rebuild_company_index(db, current_user.company_id)
     return {"message": "索引重建完成", "indexed_count": count}
-  except Exception as e:
-    return {"message": f"重建失败: {e}", "indexed_count": 0}
+  except ValueError as e:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+  except ExternalServiceError as e:
+    raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
 
 @router.put("/company", summary="更新企业信息")
@@ -91,6 +97,20 @@ def update_company(
   db: Session = Depends(get_db),
 ):
   company = current_user.company
+  if not company:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="企业信息不存在")
   company.name = body.company_name
   db.commit()
   return {"message": "企业信息已更新", "company_name": company.name}
+
+
+@router.post("/reset-demo", summary="加载演示数据（管理员）")
+def reset_demo(
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  """重建当前租户的演示知识库、会话、工单（覆盖已有演示数据）。"""
+  if current_user.role != "admin":
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅管理员可操作")
+  reset_demo_data_for_company(db, current_user.company_id, current_user.id)
+  return {"message": "演示数据已加载", "company_id": current_user.company_id}

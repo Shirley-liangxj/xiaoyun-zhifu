@@ -7,6 +7,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models import Conversation, Message
+from app.services.errors import ExternalServiceError
 from app.services.llm import llm_service
 from app.services.rag import search_knowledge
 
@@ -102,8 +103,10 @@ def generate_suggestion(
       {"role": "user", "content": user_prompt},
     ])
   except ValueError:
-    # API Key 未配置，生成占位建议
     reply = "（AI 服务未配置，请在 .env 中设置 LLM_API_KEY 后重试）"
+    confidence = 0.0
+  except ExternalServiceError as e:
+    reply = f"（AI 服务暂时不可用：{e}）"
     confidence = 0.0
 
   # 来源溯源 JSON

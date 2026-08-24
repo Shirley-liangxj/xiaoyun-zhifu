@@ -6,6 +6,7 @@ class OverviewStats(BaseModel):
   """总览统计"""
   total_conversations: int = 0
   active_conversations: int = 0
+  waiting_human_conversations: int = 0
   total_messages: int = 0
   total_tickets: int = 0
   open_tickets: int = 0

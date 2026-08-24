@@ -6,6 +6,7 @@ from app.core.security import create_access_token, hash_password, verify_passwor
 from app.database import get_db
 from app.models import Company, User
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.services.bootstrap import seed_minimal_demo, seed_tenant_defaults
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
 
@@ -41,6 +42,8 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
   db.add(user)
   db.commit()
   db.refresh(user)
+  seed_tenant_defaults(db, company.id)
+  seed_minimal_demo(db, company.id, user.id)
 
   token = create_access_token({"sub": str(user.id)})
   return TokenResponse(access_token=token)

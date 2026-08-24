@@ -32,6 +32,10 @@ def get_dashboard_stats(
     Conversation.company_id == company_id,
     Conversation.status == "active",
   ).scalar() or 0
+  waiting_convs = db.query(func.count(Conversation.id)).filter(
+    Conversation.company_id == company_id,
+    Conversation.status == "waiting_human",
+  ).scalar() or 0
 
   # 消息统计（通过会话关联）
   conv_ids = db.query(Conversation.id).filter(Conversation.company_id == company_id).subquery()
@@ -80,6 +84,7 @@ def get_dashboard_stats(
     overview=OverviewStats(
       total_conversations=total_convs,
       active_conversations=active_convs,
+      waiting_human_conversations=waiting_convs,
       total_messages=total_msgs,
       total_tickets=total_tickets,
       open_tickets=ticket_count_by_status("open"),

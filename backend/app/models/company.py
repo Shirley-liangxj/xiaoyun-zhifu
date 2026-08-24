@@ -36,4 +36,4 @@ class Company(Base):
   tickets: Mapped[List[Ticket]] = relationship("Ticket", back_populates="company")
   knowledge_gaps: Mapped[List[KnowledgeGap]] = relationship("KnowledgeGap", back_populates="company")
   quick_replies: Mapped[List[QuickReply]] = relationship("QuickReply", back_populates="company")
-  settings: Mapped[Optional["CompanySettings"]] = relationship("CompanySettings", back_populates="company", uselist=False)
+  settings: Mapped["CompanySettings | None"] = relationship("CompanySettings", back_populates="company", uselist=False)

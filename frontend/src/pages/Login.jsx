@@ -76,6 +76,9 @@ export default function Login() {
         </form>
 
         <p className="text-center text-sm text-gray-400 mt-6">
+          演示账号：<span className="text-gray-600 font-medium">testadmin</span> / <span className="text-gray-600 font-medium">123456</span>
+        </p>
+        <p className="text-center text-sm text-gray-400 mt-2">
           还没有账号？{' '}
           <Link to="/register" className="text-primary hover:underline font-medium">
             立即注册

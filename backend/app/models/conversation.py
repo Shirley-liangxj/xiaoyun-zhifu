@@ -25,7 +25,7 @@ class Conversation(Base):
   customer_name: Mapped[str] = mapped_column(String(50), default="客户", comment="客户昵称")
   channel: Mapped[str] = mapped_column(String(20), default="web", comment="渠道: web/wechat/phone")
   status: Mapped[str] = mapped_column(
-    String(20), default="active", comment="状态: active/closed"
+    String(20), default="active", comment="状态: active/waiting_human/closed"
   )
   created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
   closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -58,4 +58,4 @@ class Message(Base):
 
   # 关联
   conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")
-  sender: Mapped[Optional[User]] = relationship("User", back_populates="messages")
+  sender: Mapped["User | None"] = relationship("User", back_populates="messages")

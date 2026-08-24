@@ -24,5 +24,6 @@ class EvalReport(BaseModel):
   retrieval_hit_rate: float
   avg_confidence: float
   high_confidence_rate: float
+  confidence_threshold: float = 0.6
   results: list[EvalQuestionResult]
   message: Optional[str] = None

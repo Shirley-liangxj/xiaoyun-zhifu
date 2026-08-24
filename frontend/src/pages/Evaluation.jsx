@@ -49,7 +49,7 @@ export default function Evaluation() {
             {[
               { title: '检索命中率', value: `${report.retrieval_hit_rate}%`, desc: `${report.total} 题中有结果`, color: 'text-blue-600' },
               { title: '平均置信度', value: report.avg_confidence, desc: '0~1 分值', color: 'text-primary' },
-              { title: '高置信率', value: `${report.high_confidence_rate}%`, desc: '置信度 ≥ 0.7', color: 'text-green-600' },
+              { title: '高置信率', value: `${report.high_confidence_rate}%`, desc: `置信度 ≥ ${report.confidence_threshold ?? 0.6}`, color: 'text-green-600' },
             ].map((c) => (
               <div key={c.title} className="bg-white rounded-xl shadow-sm p-5">
                 <p className="text-sm text-gray-500 mb-1">{c.title}</p>

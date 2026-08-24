@@ -1,5 +1,5 @@
 """知识库路由 - 文档 CRUD + RAG 检索"""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -90,6 +90,96 @@ def reindex_all(
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.get("/gaps", response_model=list[KnowledgeGapOut], summary="获取知识缺口列表")
+def list_gaps(
+  status_filter: str | None = None,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  """获取未命中或低置信度的问题列表"""
+  query = db.query(KnowledgeGap).filter(KnowledgeGap.company_id == current_user.company_id)
+  if status_filter:
+    query = query.filter(KnowledgeGap.status == status_filter)
+  return query.order_by(KnowledgeGap.hit_count.desc()).all()
+
+
+@router.post("/gaps/{gap_id}/resolve", response_model=KnowledgeGapOut, summary="解决知识缺口")
+def resolve_gap(
+  gap_id: int,
+  body: KnowledgeGapResolve,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  """标记知识缺口已解决，并记录补充答案"""
+  gap = db.query(KnowledgeGap).filter(
+    KnowledgeGap.id == gap_id,
+    KnowledgeGap.company_id == current_user.company_id,
+  ).first()
+  if not gap:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识缺口不存在")
+
+  gap.status = "resolved"
+  gap.suggested_answer = body.suggested_answer
+  db.commit()
+  db.refresh(gap)
+  return gap
+
+
+@router.post("/gaps/{gap_id}/ignore", summary="忽略知识缺口")
+def ignore_gap(
+  gap_id: int,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  """忽略该知识缺口"""
+  gap = db.query(KnowledgeGap).filter(
+    KnowledgeGap.id == gap_id,
+    KnowledgeGap.company_id == current_user.company_id,
+  ).first()
+  if not gap:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识缺口不存在")
+
+  gap.status = "ignored"
+  db.commit()
+  return {"message": "已忽略", "id": gap_id}
+
+
+@router.post("/upload", response_model=KnowledgeDocOut, summary="上传 txt/md 知识文档")
+async def upload_doc(
+  file: UploadFile = File(...),
+  category: str = "通用",
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  filename = file.filename or "未命名.txt"
+  suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+  if suffix not in ("txt", "md"):
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 .txt / .md 文件")
+  raw = await file.read()
+  try:
+    content = raw.decode("utf-8")
+  except UnicodeDecodeError:
+    content = raw.decode("gbk", errors="ignore")
+  if not content.strip():
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件内容为空")
+  title = filename.rsplit(".", 1)[0][:200]
+  doc = KnowledgeDoc(
+    company_id=current_user.company_id,
+    title=title,
+    content=content.strip(),
+    category=category or "通用",
+  )
+  db.add(doc)
+  db.commit()
+  db.refresh(doc)
+  try:
+    index_document(db, doc)
+  except Exception:
+    pass
+  db.refresh(doc)
+  return doc
+
+
 @router.get("/{doc_id}", response_model=KnowledgeDocOut, summary="获取文档详情")
 def get_doc(
   doc_id: int,
@@ -158,57 +248,3 @@ def delete_doc(
   db.delete(doc)
   db.commit()
   return {"message": "文档已删除", "id": doc_id}
-
-
-@router.get("/gaps", response_model=list[KnowledgeGapOut], summary="获取知识缺口列表")
-def list_gaps(
-  status_filter: str | None = None,
-  current_user: User = Depends(get_current_user),
-  db: Session = Depends(get_db),
-):
-  """获取未命中或低置信度的问题列表"""
-  query = db.query(KnowledgeGap).filter(KnowledgeGap.company_id == current_user.company_id)
-  if status_filter:
-    query = query.filter(KnowledgeGap.status == status_filter)
-  return query.order_by(KnowledgeGap.hit_count.desc()).all()
-
-
-@router.post("/gaps/{gap_id}/resolve", response_model=KnowledgeGapOut, summary="解决知识缺口")
-def resolve_gap(
-  gap_id: int,
-  body: KnowledgeGapResolve,
-  current_user: User = Depends(get_current_user),
-  db: Session = Depends(get_db),
-):
-  """标记知识缺口已解决，并记录补充答案"""
-  gap = db.query(KnowledgeGap).filter(
-    KnowledgeGap.id == gap_id,
-    KnowledgeGap.company_id == current_user.company_id,
-  ).first()
-  if not gap:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识缺口不存在")
-
-  gap.status = "resolved"
-  gap.suggested_answer = body.suggested_answer
-  db.commit()
-  db.refresh(gap)
-  return gap
-
-
-@router.post("/gaps/{gap_id}/ignore", summary="忽略知识缺口")
-def ignore_gap(
-  gap_id: int,
-  current_user: User = Depends(get_current_user),
-  db: Session = Depends(get_db),
-):
-  """忽略该知识缺口"""
-  gap = db.query(KnowledgeGap).filter(
-    KnowledgeGap.id == gap_id,
-    KnowledgeGap.company_id == current_user.company_id,
-  ).first()
-  if not gap:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识缺口不存在")
-
-  gap.status = "ignored"
-  db.commit()
-  return {"message": "已忽略", "id": gap_id}

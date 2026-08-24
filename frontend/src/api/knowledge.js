@@ -33,3 +33,12 @@ export const resolveGap = (id, suggested_answer) =>
 
 /** 忽略知识缺口 */
 export const ignoreGap = (id) => api.post(`/api/knowledge/gaps/${id}/ignore`)
+
+/** 上传 txt/md 文档 */
+export const uploadDoc = (file, category = '通用') => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post(`/api/knowledge/upload?category=${encodeURIComponent(category)}`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}

@@ -1,8 +1,9 @@
 """会话路由 - 会话与消息管理 + AI 回复建议"""
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -21,6 +22,7 @@ from app.services.knowledge_gap import record_knowledge_gap
 from app.services.settings import get_or_create_settings
 
 router = APIRouter(prefix="/api/conversations", tags=["会话"])
+logger = logging.getLogger(__name__)
 
 
 def _build_conversation_out(conv: Conversation, db: Session) -> ConversationOut:
@@ -59,7 +61,14 @@ def list_conversations(
   )
   if status_filter:
     query = query.filter(Conversation.status == status_filter)
-  convs = query.order_by(Conversation.created_at.desc()).all()
+  convs = query.order_by(
+    case(
+      (Conversation.status == "waiting_human", 0),
+      (Conversation.status == "active", 1),
+      else_=2,
+    ),
+    Conversation.created_at.desc(),
+  ).all()
   return [_build_conversation_out(c, db) for c in convs]
 
 
@@ -131,6 +140,9 @@ def send_message(
     content=body.content,
     is_sent=True,
   )
+  if body.role == "agent" and conv.status == "waiting_human":
+    conv.status = "active"
+
   db.add(msg)
   db.commit()
   db.refresh(msg)
@@ -142,8 +154,8 @@ def send_message(
       try:
         suggestion = generate_suggestion(db, conv, body.content)
         record_knowledge_gap(db, conv.company_id, body.content, suggestion.confidence or 0, settings.confidence_threshold)
-      except Exception:
-        pass
+      except Exception as e:
+        logger.warning("AI suggestion failed for conversation %s: %s", conv.id, e)
 
   return msg
 
@@ -224,6 +236,8 @@ def accept_suggestion(
 
   # 标记建议已处理
   suggestion.is_sent = True
+  if conv.status == "waiting_human":
+    conv.status = "active"
   db.commit()
   db.refresh(agent_msg)
   return agent_msg

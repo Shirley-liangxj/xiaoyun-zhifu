@@ -5,14 +5,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import Base, engine
+from app.database import Base, SessionLocal, engine
 from app.routers import auth, conversations, eval, knowledge, public_chat, quick_replies, settings, stats, tickets, users
+from app.services.bootstrap import ensure_demo_data_if_empty
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-  """应用生命周期：启动时建表"""
+  """应用生命周期：启动时建表；空库则灌入演示数据"""
   Base.metadata.create_all(bind=engine)
+  db = SessionLocal()
+  try:
+    ensure_demo_data_if_empty(db)
+  finally:
+    db.close()
   yield
 
 

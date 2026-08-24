@@ -2,6 +2,7 @@
 import httpx
 
 from app.core.config import settings
+from app.services.errors import ExternalServiceError
 
 
 class LLMService:
@@ -22,19 +23,24 @@ class LLMService:
     messages 格式: [{"role": "system"|"user"|"assistant", "content": "..."}]
     """
     self._check_api_key()
-    with httpx.Client(timeout=60) as client:
-      resp = client.post(
-        f"{self.base_url}/chat/completions",
-        headers={"Authorization": f"Bearer {self.api_key}"},
-        json={
-          "model": self.model,
-          "messages": messages,
-          "temperature": temperature,
-        },
-      )
-      resp.raise_for_status()
-      data = resp.json()
-      return data["choices"][0]["message"]["content"]
+    try:
+      with httpx.Client(timeout=60) as client:
+        resp = client.post(
+          f"{self.base_url}/chat/completions",
+          headers={"Authorization": f"Bearer {self.api_key}"},
+          json={
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+          },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+    except httpx.HTTPError as e:
+      raise ExternalServiceError(f"大模型 API 请求失败: {e}") from e
+    except (KeyError, IndexError, TypeError) as e:
+      raise ExternalServiceError(f"大模型 API 响应格式异常: {e}") from e
 
 
 # 单例

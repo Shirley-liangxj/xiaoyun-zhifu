@@ -43,7 +43,7 @@ class Ticket(Base):
 
   # 关联
   company: Mapped[Company] = relationship("Company", back_populates="tickets")
-  conversation: Mapped[Optional[Conversation]] = relationship(
+  conversation: Mapped["Conversation | None"] = relationship(
     "Conversation", back_populates="tickets"
   )
-  assignee: Mapped[Optional[User]] = relationship("User", back_populates="assigned_tickets")
+  assignee: Mapped["User | None"] = relationship("User", back_populates="assigned_tickets")

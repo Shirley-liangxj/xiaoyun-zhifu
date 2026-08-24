@@ -5,10 +5,20 @@ const publicApi = axios.create({
   timeout: 30000,
 })
 
-/** 买家端公开对话 */
+export const getPublicConfig = () => publicApi.get('/api/public/config')
+
 export const publicChat = (message, conversationId) =>
   publicApi.post('/api/public/chat', {
     message,
     conversation_id: conversationId || undefined,
     customer_name: '访客',
   })
+
+export const transferToHuman = (conversationId) =>
+  publicApi.post('/api/public/transfer', {
+    conversation_id: conversationId || undefined,
+    customer_name: '访客',
+  })
+
+export const getPublicConversation = (conversationId) =>
+  publicApi.get(`/api/public/conversations/${conversationId}`)

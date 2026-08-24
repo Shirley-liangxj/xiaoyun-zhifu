@@ -2,6 +2,7 @@
 import httpx
 
 from app.core.config import settings
+from app.services.errors import ExternalServiceError
 
 
 class EmbeddingService:
@@ -23,17 +24,21 @@ class EmbeddingService:
   def embed_batch(self, texts: list[str]) -> list[list[float]]:
     """批量文本向量化"""
     self._check_api_key()
-    with httpx.Client(timeout=30) as client:
-      resp = client.post(
-        f"{self.base_url}/embeddings",
-        headers={"Authorization": f"Bearer {self.api_key}"},
-        json={"model": self.model, "input": texts},
-      )
-      resp.raise_for_status()
-      data = resp.json()
-      # 按 index 排序确保顺序一致
-      items = sorted(data["data"], key=lambda x: x["index"])
-      return [item["embedding"] for item in items]
+    try:
+      with httpx.Client(timeout=30) as client:
+        resp = client.post(
+          f"{self.base_url}/embeddings",
+          headers={"Authorization": f"Bearer {self.api_key}"},
+          json={"model": self.model, "input": texts},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        items = sorted(data["data"], key=lambda x: x["index"])
+        return [item["embedding"] for item in items]
+    except httpx.HTTPError as e:
+      raise ExternalServiceError(f"向量 API 请求失败: {e}") from e
+    except (KeyError, IndexError, TypeError) as e:
+      raise ExternalServiceError(f"向量 API 响应格式异常: {e}") from e
 
 
 # 单例

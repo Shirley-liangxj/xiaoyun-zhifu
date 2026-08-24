@@ -22,7 +22,7 @@ def load_questions() -> list[dict]:
   return data.get("questions", [])
 
 
-def run_evaluation(company_id: int, top_k: int = 3) -> dict:
+def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float = 0.6) -> dict:
   """
   对评测集逐题执行 RAG 检索，统计指标。
   返回：检索命中率、平均置信度、逐题详情。
@@ -34,6 +34,7 @@ def run_evaluation(company_id: int, top_k: int = 3) -> dict:
       "retrieval_hit_rate": 0,
       "avg_confidence": 0,
       "high_confidence_rate": 0,
+      "confidence_threshold": confidence_threshold,
       "results": [],
       "message": "评测集为空，请检查 eval/questions.json",
     }
@@ -60,7 +61,7 @@ def run_evaluation(company_id: int, top_k: int = 3) -> dict:
     retrieved = len(sources) > 0
     if retrieved:
       hit_count += 1
-    if confidence >= 0.7:
+    if confidence >= confidence_threshold:
       high_conf_count += 1
     total_confidence += confidence
 
@@ -87,5 +88,6 @@ def run_evaluation(company_id: int, top_k: int = 3) -> dict:
     "retrieval_hit_rate": round(hit_count / total * 100, 1),
     "avg_confidence": round(total_confidence / total, 2),
     "high_confidence_rate": round(high_conf_count / total * 100, 1),
+    "confidence_threshold": confidence_threshold,
     "results": results,
   }
