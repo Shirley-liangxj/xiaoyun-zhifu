@@ -205,6 +205,12 @@ def ensure_company_and_user(db: Session) -> tuple[Company, User]:
       company_id=company.id,
     )
     db.add(user)
+  else:
+    # 演示账号固定密码，避免旧部署残留导致登录失败
+    user.hashed_password = hash_password("123456")
+    user.is_active = True
+    if not user.display_name:
+      user.display_name = "张客服"
   db.commit()
   return company, user
 

@@ -7,17 +7,17 @@ const publicApi = axios.create({
 
 export const getPublicConfig = () => publicApi.get('/api/public/config')
 
-export const publicChat = (message, conversationId) =>
+export const publicChat = (message, conversationId, customerName) =>
   publicApi.post('/api/public/chat', {
     message,
     conversation_id: conversationId || undefined,
-    customer_name: '访客',
+    customer_name: customerName || '访客',
   })
 
-export const transferToHuman = (conversationId) =>
+export const transferToHuman = (conversationId, customerName) =>
   publicApi.post('/api/public/transfer', {
     conversation_id: conversationId || undefined,
-    customer_name: '访客',
+    customer_name: customerName || '访客',
   })
 
 export const getPublicConversation = (conversationId) =>

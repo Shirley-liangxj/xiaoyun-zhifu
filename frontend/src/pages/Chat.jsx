@@ -1,11 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getPublicConfig, getPublicConversation, publicChat, transferToHuman } from '../api/public'
 
-function confidenceLabel(c) {
-  if (c >= 0.7) return { text: '高置信', color: 'bg-green-100 text-green-700' }
-  if (c >= 0.4) return { text: '中置信', color: 'bg-yellow-100 text-yellow-700' }
-  return { text: '低置信', color: 'bg-red-100 text-red-600' }
-}
+const STORAGE_KEY = 'xiaoyun_buyer_session'
 
 function roleMeta(role) {
   if (role === 'user') return { align: 'end', bubble: 'bg-primary text-white rounded-br-md', label: '' }
@@ -13,15 +9,37 @@ function roleMeta(role) {
   return { align: 'start', bubble: 'bg-white text-gray-800 shadow-sm rounded-bl-md', label: 'AI 小云' }
 }
 
+function loadSession() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
+  } catch {
+    return null
+  }
+}
+
+function saveSession(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+}
+
+const QUICK_QUESTIONS = [
+  '我买的衣服尺码不合适能换货吗？',
+  '退货需要自己付运费吗？',
+  '退款多久能到账？',
+  '发什么快递？',
+]
+
 export default function Chat() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [conversationId, setConversationId] = useState(null)
   const [humanMode, setHumanMode] = useState(false)
-  const [welcome, setWelcome] = useState('您好！我是云裳服饰智能客服小云，有什么可以帮您的？')
+  const [welcome, setWelcome] = useState('您好！我是智能客服小云，有什么可以帮您的？')
   const [shopName, setShopName] = useState('云裳服饰客服')
-  const [confidenceThreshold, setConfidenceThreshold] = useState(0.6)
+  const [nickname, setNickname] = useState('')
+  const [nicknameInput, setNicknameInput] = useState('')
+  const [ready, setReady] = useState(false)
+  const [showFaq, setShowFaq] = useState(false)
   const endRef = useRef(null)
 
   useEffect(() => {
@@ -29,19 +47,27 @@ export default function Chat() {
       .then((res) => {
         if (res.data.welcome_message) setWelcome(res.data.welcome_message)
         if (res.data.company_name) setShopName(res.data.company_name + '客服')
-        if (res.data.confidence_threshold) setConfidenceThreshold(res.data.confidence_threshold)
       })
       .catch(() => {})
+
+    const saved = loadSession()
+    if (saved?.nickname) {
+      setNickname(saved.nickname)
+      setNicknameInput(saved.nickname)
+      if (saved.conversationId) setConversationId(saved.conversationId)
+      setReady(true)
+    }
   }, [])
 
   useEffect(() => {
+    if (!ready) return
     setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
-  }, [welcome])
+  }, [welcome, ready])
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   useEffect(() => {
-    if (!conversationId) return undefined
+    if (!conversationId || !ready) return undefined
     const timer = setInterval(async () => {
       try {
         const res = await getPublicConversation(conversationId)
@@ -51,7 +77,6 @@ export default function Chat() {
           id: m.id,
           role: m.role,
           content: m.content,
-          confidence: m.confidence,
           sources: m.sources,
           need_human: false,
         }))
@@ -66,21 +91,41 @@ export default function Chat() {
           return welcomeMsg ? [welcomeMsg, ...merged] : merged
         })
       } catch {
-        /* ignore poll errors */
+        /* ignore */
       }
     }, 2500)
     return () => clearInterval(timer)
-  }, [conversationId])
+  }, [conversationId, ready])
+
+  const startWithNickname = (e) => {
+    e.preventDefault()
+    const name = nicknameInput.trim()
+    if (!name) return
+    setNickname(name)
+    saveSession({ nickname: name, conversationId: null })
+    setConversationId(null)
+    setHumanMode(false)
+    setReady(true)
+    setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
+  }
+
+  const startNewConsult = () => {
+    saveSession({ nickname, conversationId: null })
+    setConversationId(null)
+    setHumanMode(false)
+    setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
+    setShowFaq(false)
+  }
 
   const appendAssistant = (data) => {
     setConversationId(data.conversation_id)
+    saveSession({ nickname, conversationId: data.conversation_id })
     setHumanMode(!!data.human_mode || !!data.need_human)
     if (!data.answer) return
     setMessages((prev) => [...prev, {
       id: data.message_id,
       role: 'assistant',
       content: data.answer,
-      confidence: data.confidence,
       need_human: data.need_human,
       sources: data.sources,
     }])
@@ -91,10 +136,11 @@ export default function Chat() {
     if (!input.trim() || loading) return
     const userMsg = input.trim()
     setInput('')
+    setShowFaq(false)
     setMessages((prev) => [...prev, { role: 'user', content: userMsg }])
     setLoading(true)
     try {
-      const res = await publicChat(userMsg, conversationId)
+      const res = await publicChat(userMsg, conversationId, nickname)
       appendAssistant(res.data)
     } catch {
       setMessages((prev) => [...prev, {
@@ -109,8 +155,9 @@ export default function Chat() {
 
   const handleTransfer = async () => {
     setLoading(true)
+    setShowFaq(false)
     try {
-      const res = await transferToHuman(conversationId)
+      const res = await transferToHuman(conversationId, nickname)
       appendAssistant(res.data)
     } catch {
       setMessages((prev) => [...prev, {
@@ -123,29 +170,53 @@ export default function Chat() {
     }
   }
 
-  const shouldShowTransferBtn = (msg) => {
-    if (humanMode || msg.isWelcome || msg.role !== 'assistant') return false
-    if (msg.need_human) return true
-    if (msg.confidence != null && msg.confidence < confidenceThreshold) return true
-    return false
+  const pickFaq = (q) => {
+    setInput(q)
+    setShowFaq(false)
   }
 
-  const quickQuestions = [
-    '我买的衣服尺码不合适能换货吗？',
-    '退货需要自己付运费吗？',
-    '退款多久能到账？',
-    '发什么快递？',
-  ]
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-[390px] bg-white rounded-3xl shadow-2xl p-6 border border-gray-200">
+          <div className="text-center mb-6">
+            <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3 text-lg">云</div>
+            <h1 className="text-lg font-semibold text-gray-800">{shopName}</h1>
+            <p className="text-xs text-gray-400 mt-1">请输入昵称后开始咨询（坐席端将显示此名称）</p>
+          </div>
+          <form onSubmit={startWithNickname} className="space-y-4">
+            <input
+              required
+              value={nicknameInput}
+              onChange={(e) => setNicknameInput(e.target.value)}
+              placeholder="如：王女士"
+              maxLength={20}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <button type="submit" className="w-full py-2.5 bg-primary text-white rounded-xl text-sm hover:bg-primary-dark">
+              开始咨询
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-[390px] h-[720px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
+      <div className="w-full max-w-[390px] h-[720px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 relative">
         <div className="bg-primary px-4 py-3 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white text-sm">云</div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-semibold">{shopName}</p>
-            <p className="text-white/70 text-xs">{humanMode ? '人工客服处理中' : 'AI 智能客服 · 在线'}</p>
+            <p className="text-white/70 text-xs">
+              {humanMode ? '人工客服处理中' : 'AI 智能客服 · 在线'} · {nickname}
+            </p>
           </div>
+          <button type="button" onClick={startNewConsult}
+            className="text-xs text-white/90 border border-white/30 px-2 py-1 rounded-full hover:bg-white/10">
+            新咨询
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
@@ -165,14 +236,6 @@ export default function Chat() {
                     </div>
                   )}
 
-                  {msg.confidence !== undefined && msg.confidence !== null && !msg.isWelcome && msg.role !== 'agent' && (
-                    <div className="mt-1.5 flex items-center gap-1">
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${confidenceLabel(msg.confidence).color}`}>
-                        {confidenceLabel(msg.confidence).text} {(msg.confidence * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  )}
-
                   {msg.sources?.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-gray-100">
                       <p className="text-xs text-gray-400 mb-1">参考来源</p>
@@ -184,7 +247,7 @@ export default function Chat() {
                     </div>
                   )}
 
-                  {shouldShowTransferBtn(msg) && (
+                  {msg.need_human && !humanMode && msg.role === 'assistant' && !msg.isWelcome && (
                     <button
                       type="button"
                       onClick={handleTransfer}
@@ -208,18 +271,29 @@ export default function Chat() {
           <div ref={endRef} />
         </div>
 
-        {messages.filter((m) => !m.isWelcome).length === 0 && (
-          <div className="px-4 py-2 flex gap-1.5 flex-wrap border-t border-gray-100">
-            {quickQuestions.map((q) => (
-              <button key={q} onClick={() => setInput(q)}
-                className="text-xs px-2.5 py-1 bg-white border border-gray-200 rounded-full text-gray-600 hover:border-primary hover:text-primary">
-                {q}
-              </button>
-            ))}
+        {showFaq && (
+          <div className="absolute inset-x-0 bottom-16 mx-3 mb-1 bg-white rounded-2xl shadow-xl border border-gray-100 p-3 z-10">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-700">常见问题</p>
+              <button type="button" onClick={() => setShowFaq(false)} className="text-xs text-gray-400">关闭</button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_QUESTIONS.map((q) => (
+                <button key={q} type="button" onClick={() => pickFaq(q)}
+                  className="text-xs px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-gray-600 hover:border-primary hover:text-primary">
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         <form onSubmit={handleSend} className="p-3 border-t border-gray-100 flex gap-2 bg-white items-center">
+          <button type="button" onClick={() => setShowFaq((v) => !v)}
+            className="shrink-0 text-xs px-2 py-2 border border-gray-200 text-gray-600 rounded-full hover:bg-gray-50"
+            title="常见问题">
+            常见
+          </button>
           {!humanMode && (
             <button type="button" onClick={handleTransfer} disabled={loading}
               className="shrink-0 text-xs px-2 py-2 border border-orange-200 text-orange-600 rounded-full hover:bg-orange-50 disabled:opacity-60">

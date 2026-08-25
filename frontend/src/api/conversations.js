@@ -29,3 +29,7 @@ export const rejectSuggestion = (conversationId, suggestionId) =>
 /** 关闭会话 */
 export const closeConversation = (id) =>
   api.post(`/api/conversations/${id}/close`)
+
+/** 坐席接入待人工会话 */
+export const acceptConversation = (id) =>
+  api.post(`/api/conversations/${id}/accept`)

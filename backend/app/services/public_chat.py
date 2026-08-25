@@ -40,17 +40,34 @@ def get_or_create_conversation(
   customer_name: str,
 ) -> Conversation:
   conv = None
+  name = (customer_name or "").strip() or "访客"
   if conversation_id:
     conv = db.query(Conversation).filter(
       Conversation.id == conversation_id,
       Conversation.company_id == company_id,
     ).first()
   if not conv:
-    conv = Conversation(company_id=company_id, customer_name=customer_name or "访客", channel="web")
+    conv = Conversation(company_id=company_id, customer_name=name, channel="web")
     db.add(conv)
     db.commit()
     db.refresh(conv)
+  elif name and name != "访客" and (not conv.customer_name or conv.customer_name == "访客"):
+    conv.customer_name = name
+    db.commit()
   return conv
+
+
+def _is_human_mode(db: Session, conv: Conversation) -> bool:
+  """待人工，或已有坐席介入的进行中会话，均视为人工模式。"""
+  if conv.status == "waiting_human":
+    return True
+  if conv.status == "closed":
+    return False
+  has_agent = db.query(Message.id).filter(
+    Message.conversation_id == conv.id,
+    Message.role == "agent",
+  ).first()
+  return has_agent is not None
 
 
 def serialize_message(msg: Message) -> dict:
@@ -88,7 +105,7 @@ def list_buyer_messages(db: Session, company_id: int, conversation_id: int) -> d
   return {
     "conversation_id": conv.id,
     "status": conv.status,
-    "human_mode": conv.status == "waiting_human",
+    "human_mode": _is_human_mode(db, conv),
     "messages": [serialize_message(m) for m in messages if _visible_to_buyer(m)],
   }
 
@@ -209,6 +226,6 @@ def chat_for_buyer(
     "answer": ai_msg.content,
     "confidence": confidence,
     "need_human": need_human,
-    "human_mode": conv.status == "waiting_human",
+    "human_mode": _is_human_mode(db, conv),
     "sources": sources_data,
   }

@@ -1,9 +1,10 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import { listConversations } from '../../api/conversations'
 
-// 侧边栏导航项配置
 const navItems = [
   { to: '/', label: '工作台', icon: '🏠' },
-  { to: '/conversations', label: '会话管理', icon: '💬' },
+  { to: '/conversations', label: '会话管理', icon: '💬', badgeKey: 'waiting' },
   { to: '/tickets', label: '工单中心', icon: '📋' },
   { to: '/knowledge', label: '知识库', icon: '📚' },
   { to: '/quick-replies', label: '快捷话术', icon: '💡' },
@@ -12,14 +13,28 @@ const navItems = [
 ]
 
 export default function Sidebar() {
+  const [waitingCount, setWaitingCount] = useState(0)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await listConversations('waiting_human')
+        setWaitingCount(res.data.length)
+      } catch {
+        /* ignore */
+      }
+    }
+    load()
+    const timer = setInterval(load, 5000)
+    return () => clearInterval(timer)
+  }, [])
+
   return (
     <aside className="w-[220px] min-h-screen bg-sidebar flex flex-col flex-shrink-0">
-      {/* Logo 区域 */}
       <div className="h-16 flex items-center px-5 border-b border-gray-700">
         <span className="text-white text-lg font-bold tracking-wide">小云智服</span>
       </div>
 
-      {/* 导航菜单 */}
       <nav className="flex-1 py-4">
         {navItems.map((item) => (
           <NavLink
@@ -35,15 +50,19 @@ export default function Sidebar() {
             }
           >
             <span className="text-base">{item.icon}</span>
-            <span>{item.label}</span>
+            <span className="flex-1">{item.label}</span>
+            {item.badgeKey === 'waiting' && waitingCount > 0 && (
+              <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
+                {waitingCount > 99 ? '99+' : waitingCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
 
-      {/* 底部版本信息 */}
       <div className="px-5 py-4 border-t border-gray-700">
         <p className="text-gray-500 text-xs">v1.1.0</p>
-        <a href="/chat" target="_blank" className="text-xs text-primary-light hover:underline mt-1 block">买家端 ↗</a>
+        <a href="/chat" target="_blank" rel="noreferrer" className="text-xs text-primary-light hover:underline mt-1 block">买家端 ↗</a>
       </div>
     </aside>
   )

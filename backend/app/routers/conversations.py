@@ -272,6 +272,37 @@ def reject_suggestion(
   return {"message": "已忽略该建议", "id": suggestion_id}
 
 
+@router.post("/{conversation_id}/accept", summary="坐席接入待人工会话")
+def accept_conversation(
+  conversation_id: int,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  """将 waiting_human 会话接入为 active，并发送接入提示。"""
+  conv = db.query(Conversation).filter(
+    Conversation.id == conversation_id,
+    Conversation.company_id == current_user.company_id,
+  ).first()
+  if not conv:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+  if conv.status == "closed":
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="会话已关闭")
+  if conv.status != "waiting_human":
+    return {"message": "会话已在处理中", "id": conversation_id, "status": conv.status}
+
+  conv.status = "active"
+  tip = Message(
+    conversation_id=conv.id,
+    sender_id=current_user.id,
+    role="agent",
+    content="您好，人工客服已接入，请问还有什么可以帮您？",
+    is_sent=True,
+  )
+  db.add(tip)
+  db.commit()
+  return {"message": "已接入", "id": conversation_id, "status": conv.status}
+
+
 @router.post("/{conversation_id}/close", summary="关闭会话")
 def close_conversation(
   conversation_id: int,
