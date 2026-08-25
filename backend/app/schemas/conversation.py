@@ -21,6 +21,8 @@ class ConversationOut(BaseModel):
   closed_at: Optional[datetime] = None
   message_count: int = 0
   last_message: Optional[str] = None
+  last_message_at: Optional[datetime] = None
+  unread_count: int = 0
 
   class Config:
     from_attributes = True

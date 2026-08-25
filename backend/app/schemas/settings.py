@@ -36,3 +36,4 @@ class SystemStatusOut(BaseModel):
   knowledge_docs_indexed: int
   index_ready: bool
   company_name: str
+  company_id: int = 1

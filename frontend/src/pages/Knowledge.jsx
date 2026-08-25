@@ -111,10 +111,16 @@ export default function Knowledge() {
   }
 
   const handleResolveGap = async (gap) => {
-    const answer = prompt('补充答案（将写入知识缺口记录）', gap.suggested_answer || '')
-    if (answer === null) return
-    await resolveGap(gap.id, answer)
-    loadGaps()
+    const answer = prompt('补充标准答案（将写入知识库并建立索引）', gap.suggested_answer || '')
+    if (answer === null || !answer.trim()) return
+    try {
+      const res = await resolveGap(gap.id, answer.trim())
+      const docId = res.data?.knowledge_doc_id
+      alert(docId ? `已解决并写入知识库（文档 #${docId}）` : '已标记为解决')
+      loadGaps()
+    } catch (err) {
+      alert(err.response?.data?.detail || '处理失败')
+    }
   }
 
   const handleIgnoreGap = async (id) => {

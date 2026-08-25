@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { listConversations } from '../../api/conversations'
+import { useAuth } from '../../context/AuthContext'
 
 const navItems = [
   { to: '/', label: '工作台', icon: '🏠' },
@@ -13,7 +14,9 @@ const navItems = [
 ]
 
 export default function Sidebar() {
+  const { user } = useAuth()
   const [waitingCount, setWaitingCount] = useState(0)
+  const chatHref = user?.company_id ? `/chat?company_id=${user.company_id}` : '/chat'
 
   useEffect(() => {
     const load = async () => {
@@ -62,7 +65,7 @@ export default function Sidebar() {
 
       <div className="px-5 py-4 border-t border-gray-700">
         <p className="text-gray-500 text-xs">v1.1.0</p>
-        <a href="/chat" target="_blank" rel="noreferrer" className="text-xs text-primary-light hover:underline mt-1 block">买家端 ↗</a>
+        <a href={chatHref} target="_blank" rel="noreferrer" className="text-xs text-primary-light hover:underline mt-1 block">买家端 ↗</a>
       </div>
     </aside>
   )

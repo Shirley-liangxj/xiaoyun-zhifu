@@ -64,6 +64,7 @@ def seed_tenant_defaults(db: Session, company_id: int) -> None:
 
 def seed_conversations(db: Session, company_id: int, user_id: int) -> dict[str, int]:
   """创建演示会话，返回客户名 -> 会话ID。"""
+  demo_prefix = "【演示】"
   convs = db.query(Conversation).filter(Conversation.company_id == company_id).all()
   for conv in convs:
     db.query(Message).filter(Message.conversation_id == conv.id).delete()
@@ -72,7 +73,8 @@ def seed_conversations(db: Session, company_id: int, user_id: int) -> dict[str, 
 
   scenarios = [
     {
-      "customer_name": "李女士",
+      "key": "李女士",
+      "customer_name": f"{demo_prefix}李女士",
       "channel": "wechat",
       "status": "closed",
       "messages": [
@@ -82,7 +84,8 @@ def seed_conversations(db: Session, company_id: int, user_id: int) -> dict[str, 
       ],
     },
     {
-      "customer_name": "王先生",
+      "key": "王先生",
+      "customer_name": f"{demo_prefix}王先生",
       "channel": "web",
       "status": "closed",
       "messages": [
@@ -92,7 +95,8 @@ def seed_conversations(db: Session, company_id: int, user_id: int) -> dict[str, 
       ],
     },
     {
-      "customer_name": "赵小姐",
+      "key": "赵小姐",
+      "customer_name": f"{demo_prefix}赵小姐",
       "channel": "wechat",
       "status": "waiting_human",
       "messages": [
@@ -101,7 +105,8 @@ def seed_conversations(db: Session, company_id: int, user_id: int) -> dict[str, 
       ],
     },
     {
-      "customer_name": "陈先生",
+      "key": "陈先生",
+      "customer_name": f"{demo_prefix}陈先生",
       "channel": "phone",
       "status": "closed",
       "messages": [
@@ -111,7 +116,8 @@ def seed_conversations(db: Session, company_id: int, user_id: int) -> dict[str, 
       ],
     },
     {
-      "customer_name": "刘女士",
+      "key": "刘女士",
+      "customer_name": f"{demo_prefix}刘女士",
       "channel": "web",
       "status": "active",
       "messages": [
@@ -132,7 +138,7 @@ def seed_conversations(db: Session, company_id: int, user_id: int) -> dict[str, 
     )
     db.add(conv)
     db.flush()
-    name_to_id[scenario["customer_name"]] = conv.id
+    name_to_id[scenario["key"]] = conv.id
     for msg in scenario["messages"]:
       role = msg[0]
       content = msg[1]
@@ -222,7 +228,7 @@ def seed_minimal_demo(db: Session, company_id: int, user_id: int) -> bool:
 
   conv = Conversation(
     company_id=company_id,
-    customer_name="演示买家",
+    customer_name="【演示】演示买家",
     channel="web",
     status="waiting_human",
   )

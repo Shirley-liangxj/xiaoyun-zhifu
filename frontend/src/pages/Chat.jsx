@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getPublicConfig, getPublicConversation, publicChat, transferToHuman } from '../api/public'
 
 const STORAGE_KEY = 'xiaoyun_buyer_session'
@@ -9,16 +10,20 @@ function roleMeta(role) {
   return { align: 'start', bubble: 'bg-white text-gray-800 shadow-sm rounded-bl-md', label: 'AI 小云' }
 }
 
-function loadSession() {
+function storageKey(companyId) {
+  return companyId ? `${STORAGE_KEY}_${companyId}` : STORAGE_KEY
+}
+
+function loadSession(companyId) {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
+    return JSON.parse(localStorage.getItem(storageKey(companyId)) || 'null')
   } catch {
     return null
   }
 }
 
-function saveSession(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+function saveSession(companyId, data) {
+  localStorage.setItem(storageKey(companyId), JSON.stringify(data))
 }
 
 const QUICK_QUESTIONS = [
@@ -29,13 +34,19 @@ const QUICK_QUESTIONS = [
 ]
 
 export default function Chat() {
+  const [searchParams] = useSearchParams()
+  const companyIdParam = searchParams.get('company_id')
+  const companyId = companyIdParam ? parseInt(companyIdParam, 10) : null
+  const resolvedCompanyId = Number.isNaN(companyId) ? null : companyId
+
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [conversationId, setConversationId] = useState(null)
   const [humanMode, setHumanMode] = useState(false)
   const [welcome, setWelcome] = useState('您好！我是智能客服小云，有什么可以帮您的？')
-  const [shopName, setShopName] = useState('云裳服饰客服')
+  const [shopName, setShopName] = useState('智能客服')
+  const [activeCompanyId, setActiveCompanyId] = useState(resolvedCompanyId)
   const [nickname, setNickname] = useState('')
   const [nicknameInput, setNicknameInput] = useState('')
   const [ready, setReady] = useState(false)
@@ -43,21 +54,22 @@ export default function Chat() {
   const endRef = useRef(null)
 
   useEffect(() => {
-    getPublicConfig()
+    getPublicConfig(resolvedCompanyId)
       .then((res) => {
         if (res.data.welcome_message) setWelcome(res.data.welcome_message)
-        if (res.data.company_name) setShopName(res.data.company_name + '客服')
+        if (res.data.company_name) setShopName(`${res.data.company_name}客服`)
+        if (res.data.company_id) setActiveCompanyId(res.data.company_id)
       })
       .catch(() => {})
 
-    const saved = loadSession()
+    const saved = loadSession(resolvedCompanyId)
     if (saved?.nickname) {
       setNickname(saved.nickname)
       setNicknameInput(saved.nickname)
       if (saved.conversationId) setConversationId(saved.conversationId)
       setReady(true)
     }
-  }, [])
+  }, [resolvedCompanyId])
 
   useEffect(() => {
     if (!ready) return
@@ -70,7 +82,7 @@ export default function Chat() {
     if (!conversationId || !ready) return undefined
     const timer = setInterval(async () => {
       try {
-        const res = await getPublicConversation(conversationId)
+        const res = await getPublicConversation(conversationId, activeCompanyId)
         const data = res.data
         setHumanMode(!!data.human_mode)
         const remote = (data.messages || []).map((m) => ({
@@ -95,14 +107,14 @@ export default function Chat() {
       }
     }, 2500)
     return () => clearInterval(timer)
-  }, [conversationId, ready])
+  }, [conversationId, ready, activeCompanyId])
 
   const startWithNickname = (e) => {
     e.preventDefault()
     const name = nicknameInput.trim()
     if (!name) return
     setNickname(name)
-    saveSession({ nickname: name, conversationId: null })
+    saveSession(activeCompanyId, { nickname: name, conversationId: null })
     setConversationId(null)
     setHumanMode(false)
     setReady(true)
@@ -110,7 +122,7 @@ export default function Chat() {
   }
 
   const startNewConsult = () => {
-    saveSession({ nickname, conversationId: null })
+    saveSession(activeCompanyId, { nickname, conversationId: null })
     setConversationId(null)
     setHumanMode(false)
     setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
@@ -119,7 +131,7 @@ export default function Chat() {
 
   const appendAssistant = (data) => {
     setConversationId(data.conversation_id)
-    saveSession({ nickname, conversationId: data.conversation_id })
+    saveSession(activeCompanyId, { nickname, conversationId: data.conversation_id })
     setHumanMode(!!data.human_mode || !!data.need_human)
     if (!data.answer) return
     setMessages((prev) => [...prev, {
@@ -140,7 +152,7 @@ export default function Chat() {
     setMessages((prev) => [...prev, { role: 'user', content: userMsg }])
     setLoading(true)
     try {
-      const res = await publicChat(userMsg, conversationId, nickname)
+      const res = await publicChat(userMsg, conversationId, nickname, activeCompanyId)
       appendAssistant(res.data)
     } catch {
       setMessages((prev) => [...prev, {
@@ -157,7 +169,7 @@ export default function Chat() {
     setLoading(true)
     setShowFaq(false)
     try {
-      const res = await transferToHuman(conversationId, nickname)
+      const res = await transferToHuman(conversationId, nickname, activeCompanyId)
       appendAssistant(res.data)
     } catch {
       setMessages((prev) => [...prev, {

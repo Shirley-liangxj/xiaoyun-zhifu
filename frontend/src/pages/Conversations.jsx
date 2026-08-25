@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   listConversations, createConversation, getConversation,
   sendMessage, closeConversation, triggerAiSuggest,
@@ -74,7 +75,21 @@ const STATUS_FILTERS = [
   { value: 'closed', label: '已关闭' },
 ]
 
+function formatRelativeTime(iso) {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return '刚刚'
+  if (mins < 60) return `${mins} 分钟前`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} 小时前`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days} 天前`
+  return new Date(iso).toLocaleDateString('zh-CN')
+}
+
 export default function Conversations() {
+  const [searchParams] = useSearchParams()
   const [conversations, setConversations] = useState([])
   const [waitingCount, setWaitingCount] = useState(0)
   const [activeId, setActiveId] = useState(null)
@@ -98,6 +113,7 @@ export default function Conversations() {
   const messagesEndRef = useRef(null)
   const activeIdRef = useRef(null)
   const prevWaitingRef = useRef(0)
+  const openedFromUrl = useRef(false)
 
   const statusText = (s) => {
     if (s === 'waiting_human') return '待人工'
@@ -152,6 +168,18 @@ export default function Conversations() {
   }
 
   useEffect(() => { loadList() }, [statusFilter])
+
+  useEffect(() => {
+    if (openedFromUrl.current || loading) return
+    const idParam = searchParams.get('id')
+    if (!idParam) return
+    const id = parseInt(idParam, 10)
+    if (!Number.isNaN(id)) {
+      openedFromUrl.current = true
+      loadConversation(id)
+    }
+  }, [loading, searchParams])
+
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   useEffect(() => {
@@ -368,12 +396,26 @@ export default function Conversations() {
                   } ${c.status === 'waiting_human' ? 'border-l-4 border-l-orange-400' : ''}`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-800">{c.customer_name}</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${statusClass(c.status)}`}>
-                      {statusText(c.status)}
+                    <span className={`text-sm font-medium truncate ${c.unread_count > 0 ? 'text-gray-900' : 'text-gray-800'}`}>
+                      {c.customer_name}
+                      {c.unread_count > 0 && (
+                        <span className="ml-1.5 inline-flex min-w-[1.1rem] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] items-center justify-center align-middle">
+                          {c.unread_count > 99 ? '99+' : c.unread_count}
+                        </span>
+                      )}
                     </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {c.last_message_at && (
+                        <span className="text-[10px] text-gray-300">{formatRelativeTime(c.last_message_at)}</span>
+                      )}
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${statusClass(c.status)}`}>
+                        {statusText(c.status)}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5 truncate">{c.last_message || '暂无消息'}</p>
+                  <p className={`text-xs mt-0.5 truncate ${c.unread_count > 0 ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>
+                    {c.last_message || '暂无消息'}
+                  </p>
                   <p className="text-xs text-gray-300 mt-0.5">{c.message_count} 条消息 · {c.channel}</p>
                 </button>
               ))

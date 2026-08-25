@@ -13,7 +13,7 @@ from app.schemas.knowledge import (
   KnowledgeSearchResponse,
   KnowledgeSearchResult,
 )
-from app.schemas.knowledge_gap import KnowledgeGapOut, KnowledgeGapResolve
+from app.schemas.knowledge_gap import KnowledgeGapOut, KnowledgeGapResolve, KnowledgeGapResolveOut
 from app.services.rag import index_document, rebuild_company_index, remove_document_index, search_knowledge
 
 router = APIRouter(prefix="/api/knowledge", tags=["知识库"])
@@ -103,14 +103,14 @@ def list_gaps(
   return query.order_by(KnowledgeGap.hit_count.desc()).all()
 
 
-@router.post("/gaps/{gap_id}/resolve", response_model=KnowledgeGapOut, summary="解决知识缺口")
+@router.post("/gaps/{gap_id}/resolve", response_model=KnowledgeGapResolveOut, summary="解决知识缺口")
 def resolve_gap(
   gap_id: int,
   body: KnowledgeGapResolve,
   current_user: User = Depends(get_current_user),
   db: Session = Depends(get_db),
 ):
-  """标记知识缺口已解决，并记录补充答案"""
+  """标记知识缺口已解决，可选写入知识库并索引"""
   gap = db.query(KnowledgeGap).filter(
     KnowledgeGap.id == gap_id,
     KnowledgeGap.company_id == current_user.company_id,
@@ -118,11 +118,28 @@ def resolve_gap(
   if not gap:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识缺口不存在")
 
+  doc_id = None
+  if body.create_doc:
+    title = gap.question.strip()[:100] or "知识缺口补充"
+    doc = KnowledgeDoc(
+      company_id=current_user.company_id,
+      title=title,
+      content=f"问：{gap.question.strip()}\n\n答：{body.suggested_answer.strip()}",
+      category="缺口补充",
+    )
+    db.add(doc)
+    db.flush()
+    doc_id = doc.id
+    try:
+      index_document(db, doc)
+    except Exception:
+      pass
+
   gap.status = "resolved"
   gap.suggested_answer = body.suggested_answer
   db.commit()
   db.refresh(gap)
-  return gap
+  return KnowledgeGapResolveOut(**KnowledgeGapOut.model_validate(gap).model_dump(), knowledge_doc_id=doc_id)
 
 
 @router.post("/gaps/{gap_id}/ignore", summary="忽略知识缺口")

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { listTickets, createTicket, updateTicket, deleteTicket } from '../api/tickets'
 
 const STATUS_MAP = {
@@ -200,6 +201,15 @@ export default function Tickets() {
                 <span className="text-gray-500 text-xs">{new Date(detail.created_at).toLocaleString('zh-CN')}</span>
               </div>
             </div>
+
+            {detail.conversation_id && (
+              <Link
+                to={`/conversations?id=${detail.conversation_id}`}
+                className="mt-4 block w-full text-center text-xs text-primary border border-primary/30 rounded-lg py-2 hover:bg-primary-light"
+              >
+                查看原会话
+              </Link>
+            )}
 
             <button onClick={() => handleDelete(detail.id)}
               className="mt-6 w-full text-xs text-red-500 border border-red-200 rounded-lg py-2 hover:bg-red-50">

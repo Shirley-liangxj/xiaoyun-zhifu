@@ -29,6 +29,9 @@ class Conversation(Base):
   )
   created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
   closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+  agent_last_read_at: Mapped[Optional[datetime]] = mapped_column(
+    DateTime, nullable=True, comment="坐席最近阅读时间，用于未读计算"
+  )
 
   # 关联
   company: Mapped[Company] = relationship("Company", back_populates="conversations")

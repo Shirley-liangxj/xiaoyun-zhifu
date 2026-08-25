@@ -37,6 +37,14 @@ def _build_conversation_out(conv: Conversation, db: Session) -> ConversationOut:
     Message.role.in_(["customer", "agent", "ai_suggestion"]),
   ).order_by(Message.created_at.desc()).first()
 
+  unread_q = db.query(func.count(Message.id)).filter(
+    Message.conversation_id == conv.id,
+    Message.role == "customer",
+  )
+  if conv.agent_last_read_at:
+    unread_q = unread_q.filter(Message.created_at > conv.agent_last_read_at)
+  unread_count = unread_q.scalar() or 0
+
   return ConversationOut(
     id=conv.id,
     customer_name=conv.customer_name,
@@ -46,6 +54,8 @@ def _build_conversation_out(conv: Conversation, db: Session) -> ConversationOut:
     closed_at=conv.closed_at,
     message_count=msg_count,
     last_message=last_msg.content[:80] if last_msg else None,
+    last_message_at=last_msg.created_at if last_msg else conv.created_at,
+    unread_count=unread_count,
   )
 
 
@@ -103,6 +113,10 @@ def get_conversation(
   ).first()
   if not conv:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+
+  conv.agent_last_read_at = datetime.utcnow()
+  db.commit()
+  db.refresh(conv)
 
   messages = db.query(Message).filter(
     Message.conversation_id == conv.id

@@ -7,11 +7,13 @@ class PublicChatRequest(BaseModel):
   message: str = Field(..., min_length=1, max_length=500)
   conversation_id: int | None = None
   customer_name: str = Field(default="访客", max_length=50)
+  company_id: int | None = Field(None, description="租户公司 ID")
 
 
 class PublicTransferRequest(BaseModel):
   conversation_id: int | None = None
   customer_name: str = Field(default="访客", max_length=50)
+  company_id: int | None = Field(None, description="租户公司 ID")
 
 
 class SourceItem(BaseModel):
@@ -51,5 +53,6 @@ class PublicConversationOut(BaseModel):
 
 class PublicConfigOut(BaseModel):
   welcome_message: str
-  company_name: str = "云裳服饰"
+  company_name: str = "智能客服"
+  company_id: int = 1
   confidence_threshold: float = 0.6

@@ -81,10 +81,35 @@ export default function Settings() {
       {/* 企业信息 */}
       <div className="bg-white rounded-xl shadow-sm p-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-4">企业信息</h3>
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">公司名称</label>
-          <input value={companyName} onChange={(e) => setCompanyName(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">公司名称</label>
+            <input value={companyName} onChange={(e) => setCompanyName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            <p className="text-xs text-gray-400 mt-1">买家端顶栏将显示为「{companyName || '公司名'}客服」</p>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">买家端接入链接</label>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={`${window.location.origin}/chat?company_id=${status.company_id || 1}`}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-600"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `${window.location.origin}/chat?company_id=${status.company_id || 1}`
+                  navigator.clipboard?.writeText(url)
+                  alert('已复制接入链接')
+                }}
+                className="px-3 py-2 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 shrink-0"
+              >
+                复制
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">不同公司使用各自 company_id，进线会话会落到对应租户</p>
+          </div>
         </div>
       </div>
 

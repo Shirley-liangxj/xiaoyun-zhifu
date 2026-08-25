@@ -5,20 +5,29 @@ const publicApi = axios.create({
   timeout: 30000,
 })
 
-export const getPublicConfig = () => publicApi.get('/api/public/config')
+function withCompany(companyId) {
+  return companyId != null ? { company_id: companyId } : {}
+}
 
-export const publicChat = (message, conversationId, customerName) =>
+export const getPublicConfig = (companyId) =>
+  publicApi.get('/api/public/config', { params: withCompany(companyId) })
+
+export const publicChat = (message, conversationId, customerName, companyId) =>
   publicApi.post('/api/public/chat', {
     message,
     conversation_id: conversationId || undefined,
     customer_name: customerName || '访客',
-  })
+    company_id: companyId || undefined,
+  }, { params: withCompany(companyId) })
 
-export const transferToHuman = (conversationId, customerName) =>
+export const transferToHuman = (conversationId, customerName, companyId) =>
   publicApi.post('/api/public/transfer', {
     conversation_id: conversationId || undefined,
     customer_name: customerName || '访客',
-  })
+    company_id: companyId || undefined,
+  }, { params: withCompany(companyId) })
 
-export const getPublicConversation = (conversationId) =>
-  publicApi.get(`/api/public/conversations/${conversationId}`)
+export const getPublicConversation = (conversationId, companyId) =>
+  publicApi.get(`/api/public/conversations/${conversationId}`, {
+    params: withCompany(companyId),
+  })

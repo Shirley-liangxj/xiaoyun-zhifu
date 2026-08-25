@@ -27,9 +27,9 @@ export const reindexAll = () => api.post('/api/knowledge/reindex')
 export const listGaps = (status) =>
   api.get('/api/knowledge/gaps', { params: status ? { status_filter: status } : {} })
 
-/** 解决知识缺口 */
-export const resolveGap = (id, suggested_answer) =>
-  api.post(`/api/knowledge/gaps/${id}/resolve`, { suggested_answer })
+/** 解决知识缺口（默认写入知识库） */
+export const resolveGap = (id, suggested_answer, create_doc = true) =>
+  api.post(`/api/knowledge/gaps/${id}/resolve`, { suggested_answer, create_doc })
 
 /** 忽略知识缺口 */
 export const ignoreGap = (id) => api.post(`/api/knowledge/gaps/${id}/ignore`)

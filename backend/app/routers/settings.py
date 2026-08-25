@@ -64,6 +64,7 @@ def get_system_status(current_user: User = Depends(get_current_user), db: Sessio
     knowledge_docs_indexed=indexed,
     index_ready=indexed > 0,
     company_name=current_user.company.name if current_user.company else "",
+    company_id=current_user.company_id,
   )
 
 

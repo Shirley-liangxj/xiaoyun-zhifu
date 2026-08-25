@@ -23,3 +23,9 @@ class KnowledgeGapOut(BaseModel):
 class KnowledgeGapResolve(BaseModel):
   """标记知识缺口已解决"""
   suggested_answer: str = Field(..., min_length=1)
+  create_doc: bool = Field(default=True, description="是否写入知识库文档")
+
+
+class KnowledgeGapResolveOut(KnowledgeGapOut):
+  """解决知识缺口后的响应"""
+  knowledge_doc_id: Optional[int] = None
