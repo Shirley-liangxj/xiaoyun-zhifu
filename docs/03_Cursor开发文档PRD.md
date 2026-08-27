@@ -1,6 +1,7 @@
 # 小云智服 — Cursor开发文档（PRD for Cursor）
 
-> 版本：v1.0 | 日期：2026-08-15
+> 版本：v1.1 | 日期：2026-08-25
+> v1.1 更新：① 置信度阈值由 0.5 校准为 0.6（评测驱动）② 补充 v1.0 之后落地的多租户/评测/坐席协同接口 ③ 新增"已实现功能迭代记录"
 > 用途：本文档是给AI编码工具（Cursor）的精确开发指令，包含技术栈、数据模型、API、业务流程、文件结构、开发计划和输出规范。
 > 配套文档：docs/00_产品定位.md、docs/01_需求分析与用户研究.md、docs/02_竞品分析与差异化定位.md
 
@@ -159,6 +160,28 @@
 |------|------|------|--------|
 | GET | /api/settings/bot | 获取机器人设置 | — |
 | PUT | /api/settings/bot | 更新机器人设置 | {welcome_message, confidence_threshold, transfer_rules} |
+| POST | /api/settings/reset-demo | 加载演示数据（冷启动，灌入 seed 会话/知识缺口） | — |
+
+### 4.6 多租户买家端接口（/api/public，按 company_id 路由）
+
+| 方法 | 路径 | 说明 | 响应 |
+|------|------|------|------|
+| GET | /api/public/config | 按 company_id 返回买家端欢迎语与阈值 | {welcome_message, confidence_threshold} |
+| POST | /api/public/chat | 买家端 AI 对话（路由到对应商家知识库） | {reply, sources, confidence, need_human} |
+| POST | /api/public/transfer | 买家主动转人工 | {status} |
+| GET | /api/public/conversations/{id} | 买家拉取自己会话的消息 | {messages[]} |
+
+### 4.7 坐席协同与评测接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | /api/conversations/{id}/ai-suggest | 手动触发 AI 回复建议 |
+| POST | /api/conversations/{id}/suggestions/{sid}/accept | 采纳 AI 建议（一键发给买家） |
+| POST | /api/conversations/{id}/suggestions/{sid}/reject | 忽略 AI 建议 |
+| POST | /api/conversations/{id}/accept | 坐席接入待人工会话 |
+| POST | /api/eval/run | 运行 RAG 评测（67 题分层 golden set，输出混淆矩阵 + 转人工判断准确率） |
+| POST | /api/knowledge/gaps/{id}/resolve | 解决知识缺口（写入标准答案并关闭） |
+| POST | /api/knowledge/gaps/{id}/ignore | 忽略知识缺口 |
 
 ---
 
@@ -179,8 +202,8 @@ LLM API → FastAPI: 返回回答
 FastAPI → 数据库: 保存message(含sources, confidence, need_human)
 FastAPI → 前端: {reply, sources, confidence, need_human}
 前端 → 买家: 展示回答+来源标签
-    ├─ confidence < 0.5 → 显示"建议转人工"按钮
-    └─ confidence >= 0.5 → 正常展示
+    ├─ confidence < 0.6 → 显示"建议转人工"按钮（阈值由评测校准，见十二节）
+    └─ confidence >= 0.6 → 正常展示
 ```
 
 ### 5.2 置信度与转人工判断
@@ -190,7 +213,7 @@ FastAPI → 前端: {reply, sources, confidence, need_human}
         (0-1)        (0.8-1.0)        (0或1)
 
 转人工触发条件（满足任一）：
-1. confidence < 0.5
+1. confidence < 0.6（生产中由 company_settings.confidence_threshold 控制，默认 0.6，经 67 题评测集校准）
 2. 连续2次拒答（检索无结果）
 3. 用户消息包含"人工"/"客服"/"投诉"等关键词
 4. 情绪检测为负面（简单关键词匹配：生气/投诉/差评/举报）
@@ -441,3 +464,19 @@ v1已有18页HTML原型在 `成品包/02_原型HTML/` 目录下，开发前端�
 2. **参考其数据展示方式**（指标卡、表格、对话气泡）
 3. **补充缺失的7页**（注册、历史会话、快捷话术、团队管理、用量统计等）
 4. **买家端对话页改为手机尺寸**（375px宽，模拟真实手机聊天界面）
+
+---
+
+## 十二、已实现功能迭代记录（截至 2026-08-25）
+
+> 以下为 v1.0 PRD 之后由 AI 编码工具实现的真实提交（git log 可查），作为作品集面试复盘依据。**均为演示态（Demo）能力，非生产上线。**
+
+| 提交 | 功能 | 说明 |
+|------|------|------|
+| 6bde644 | 买家转人工体验、错误处理与演示数据冷启动 | 转人工流程打磨；API 错误统一兜底；`reset-demo` 一键灌入 seed 会话/知识缺口 |
+| 7a0bd6f | 升级 67 题评测集与转人工判断指标 | 分层 golden set + 混淆矩阵；**由评测校准置信度阈值至 0.6**（评测口径：转人工判断准确率 97%、回答准确率 91.1%、检索命中 100%、误转 1.8%、漏转 9.1%） |
+| f56c485 | 买家进线昵称与会话协同体验优化 | 买家昵称进线；待人工会话角标提醒 |
+| f97a94b | 多租户接入、知识缺口闭环与坐席协同提醒 | company_id 路由的公开买家入口（`/api/public/*`）；设置页可复制买家链接；知识缺口写入；工单可看原会话；Header 待人工提醒 |
+| e32f8f8 | 会话内一键写入知识库并清除切换残留状态 | 坐席可将 AI 标准回复一键写入知识库并关闭对应缺口；切换会话时清空残留输入/编辑状态，避免串台 |
+
+**评测口径说明（面试红线）：** 上述准确率为 67 题评测集（合成 golden set）口径，不等于线上真实解决率；真实 query 分布需上线后回流，这是已知的"数据飞轮"下一步。
