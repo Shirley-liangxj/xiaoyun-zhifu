@@ -44,3 +44,6 @@ logs/
 _chrome_tmp/
 _chrome_tmp_*/
 *_tmp/
+
+# Word临时文件
+~$*
