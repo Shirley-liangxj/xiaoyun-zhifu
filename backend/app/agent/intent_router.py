@@ -37,7 +37,10 @@ def _keyword_intent(message: str) -> tuple[str, float]:
     return "transfer", 0.85
   if re.search(r"帮我退|给我退|要退款|申请退货|提交退|办理退|我要退|把订单退", text):
     return "action", 0.8
-  # 查询：物流追踪 / 催派，避免「发什么快递」这类政策咨询被误判
+  # 政策咨询优先：发什么快递 / 怎么退，避免被「快递」误判成查物流
+  if re.search(r"发什么快递|用什么快递|什么快递|怎么退|如何退|退货政策|七天无理由", text):
+    return "consult", 0.85
+  # 查询：物流追踪 / 催派
   if re.search(r"到哪|单号|查(一下)?订单|物流(呢|怎么样|不动)|几天没动静|还没到|快递.*(没|到哪|动静)", text):
     return "query", 0.8
   if re.search(r"物流|订单状态|包裹", text) and not re.search(r"发什么|用什么快递|什么快递", text):
@@ -68,6 +71,11 @@ def classify_intent(message: str) -> dict:
       # 高危关键词优先于模型误判
       if fallback_intent == "transfer" and intent != "transfer":
         intent, conf = "transfer", max(conf, fallback_conf)
+        source = "keyword_override"
+      elif fallback_intent == "consult" and intent == "query" and re.search(
+        r"发什么快递|用什么快递|什么快递|怎么退|如何退|七天无理由", message
+      ):
+        intent, conf = "consult", max(conf, fallback_conf)
         source = "keyword_override"
       else:
         source = "llm"
