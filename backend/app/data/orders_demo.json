@@ -1,0 +1,44 @@
+[
+  {
+    "order_id": "DEMO-1001",
+    "demo": true,
+    "customer_hint": "王女士",
+    "product": "云裳碎花连衣裙 M码",
+    "amount": 199.0,
+    "currency": "CNY",
+    "status": "运输中",
+    "express": "顺丰",
+    "tracking_no": "SF1234567890",
+    "days_since_purchase": 3,
+    "logistics": "上海转运中心 → 杭州派送中",
+    "note": "演示数据，非真实物流"
+  },
+  {
+    "order_id": "DEMO-1002",
+    "demo": true,
+    "customer_hint": "李女士",
+    "product": "云裳针织开衫",
+    "amount": 268.0,
+    "currency": "CNY",
+    "status": "已签收",
+    "express": "中通",
+    "tracking_no": "ZT9876543210",
+    "days_since_purchase": 5,
+    "logistics": "已签收（小区驿站）",
+    "note": "演示数据，非真实物流"
+  },
+  {
+    "order_id": "DEMO-1003",
+    "demo": true,
+    "customer_hint": "赵小姐",
+    "product": "云裳阔腿裤",
+    "amount": 159.0,
+    "currency": "CNY",
+    "status": "已发货",
+    "express": "圆通",
+    "tracking_no": "YT5566778899",
+    "days_since_purchase": 2,
+    "logistics": "广州发往成都途中",
+    "note": "演示数据，非真实物流"
+  }
+]

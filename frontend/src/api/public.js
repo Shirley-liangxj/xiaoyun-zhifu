@@ -27,6 +27,14 @@ export const transferToHuman = (conversationId, customerName, companyId) =>
     company_id: companyId || undefined,
   }, { params: withCompany(companyId) })
 
+export const confirmPublicAction = (confirmationId, conversationId, customerName, companyId) =>
+  publicApi.post('/api/public/confirm', {
+    confirmation_id: confirmationId,
+    conversation_id: conversationId || undefined,
+    customer_name: customerName || '访客',
+    company_id: companyId || undefined,
+  }, { params: withCompany(companyId) })
+
 export const getPublicConversation = (conversationId, companyId) =>
   publicApi.get(`/api/public/conversations/${conversationId}`, {
     params: withCompany(companyId),

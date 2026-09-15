@@ -65,7 +65,8 @@ docs/关于高新区报送招投标资料有关情况的说明.docx
 docs/_39_extract.txt
 docs/_gen_39.py
 docs/两件面试宝典对比分析.md
-docs/视频*.md
+docs/*视频*
+docs/*简历*
 docs/百度*.md
 docs/微创*.md
 docs/猎豹*.md

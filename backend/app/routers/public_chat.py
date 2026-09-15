@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.agent import confirm_pending_action, run_agent_turn
 from app.core.config import settings
 from app.database import get_db
 from app.models import Company
@@ -9,11 +10,12 @@ from app.schemas.public import (
   PublicChatRequest,
   PublicChatResponse,
   PublicConfigOut,
+  PublicConfirmRequest,
   PublicConversationOut,
   PublicTransferRequest,
 )
 from app.services.errors import ExternalServiceError
-from app.services.public_chat import chat_for_buyer, list_buyer_messages, transfer_to_human
+from app.services.public_chat import list_buyer_messages, transfer_to_human
 from app.services.settings import get_or_create_settings
 
 router = APIRouter(prefix="/api/public", tags=["买家端"])
@@ -44,7 +46,7 @@ def public_config(
   )
 
 
-@router.post("/chat", response_model=PublicChatResponse, summary="买家端 AI 对话")
+@router.post("/chat", response_model=PublicChatResponse, summary="买家端 AI 对话（含意图控制层）")
 def public_chat(
   body: PublicChatRequest,
   company_id: int | None = Query(None, description="租户公司 ID"),
@@ -52,7 +54,7 @@ def public_chat(
 ):
   cid = resolve_company_id(db, body.company_id if body.company_id is not None else company_id)
   try:
-    result = chat_for_buyer(
+    result = run_agent_turn(
       db, cid, body.message, body.conversation_id, body.customer_name
     )
     return PublicChatResponse(**result)
@@ -60,6 +62,22 @@ def public_chat(
     raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
   except Exception as e:
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"对话失败: {e}")
+
+
+@router.post("/confirm", response_model=PublicChatResponse, summary="确认高风险动作（HITL）")
+def public_confirm(
+  body: PublicConfirmRequest,
+  company_id: int | None = Query(None, description="租户公司 ID"),
+  db: Session = Depends(get_db),
+):
+  cid = resolve_company_id(db, body.company_id if body.company_id is not None else company_id)
+  try:
+    result = confirm_pending_action(
+      db, cid, body.confirmation_id, body.conversation_id, body.customer_name
+    )
+    return PublicChatResponse(**result)
+  except ValueError as e:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/transfer", response_model=PublicChatResponse, summary="买家主动转人工")
@@ -70,6 +88,10 @@ def public_transfer(
 ):
   cid = resolve_company_id(db, body.company_id if body.company_id is not None else company_id)
   result = transfer_to_human(db, cid, body.conversation_id, body.customer_name)
+  result.setdefault("intent", "transfer")
+  result.setdefault("intent_label", "转人工")
+  result.setdefault("plan_steps", [])
+  result.setdefault("pending_confirmation", None)
   return PublicChatResponse(**result)
 
 

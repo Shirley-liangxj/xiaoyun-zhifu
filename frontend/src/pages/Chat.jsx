@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getPublicConfig, getPublicConversation, publicChat, transferToHuman } from '../api/public'
+import { getPublicConfig, getPublicConversation, publicChat, transferToHuman, confirmPublicAction } from '../api/public'
 
 const STORAGE_KEY = 'xiaoyun_buyer_session'
 
@@ -8,6 +8,37 @@ function roleMeta(role) {
   if (role === 'user') return { align: 'end', bubble: 'bg-primary text-white rounded-br-md', label: '' }
   if (role === 'agent') return { align: 'start', bubble: 'bg-emerald-50 text-emerald-900 shadow-sm rounded-bl-md', label: '人工客服' }
   return { align: 'start', bubble: 'bg-white text-gray-800 shadow-sm rounded-bl-md', label: 'AI 小云' }
+}
+
+function stepStatusClass(status) {
+  if (status === 'needs_confirm') return 'text-red-600 bg-red-50 border-red-200'
+  if (status === 'pending') return 'text-amber-700 bg-amber-50 border-amber-200'
+  return 'text-gray-600 bg-gray-50 border-gray-200'
+}
+
+function PlanCard({ steps, intentLabel }) {
+  if (!steps?.length) return null
+  return (
+    <div className="mt-2 p-2.5 rounded-xl border border-gray-200 bg-white/90 text-left">
+      <p className="text-[11px] font-semibold text-gray-700 mb-1.5">
+        执行计划{intentLabel ? ` · ${intentLabel}` : ''}
+      </p>
+      <ul className="space-y-1.5">
+        {steps.map((s) => (
+          <li key={s.id} className={`text-[11px] px-2 py-1.5 rounded-lg border ${stepStatusClass(s.status)}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">{s.title}</span>
+              <span className="opacity-70 shrink-0">
+                {s.status === 'needs_confirm' ? '待确认' : s.status === 'done' ? '完成' : '进行中'}
+              </span>
+            </div>
+            {s.detail && <p className="mt-0.5 opacity-80 whitespace-pre-wrap">{s.detail}</p>}
+            {s.demo && <p className="mt-0.5 text-[10px] text-amber-700">演示数据</p>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 function storageKey(companyId) {
@@ -132,15 +163,35 @@ export default function Chat() {
   const appendAssistant = (data) => {
     setConversationId(data.conversation_id)
     saveSession(activeCompanyId, { nickname, conversationId: data.conversation_id })
-    setHumanMode(!!data.human_mode || !!data.need_human)
-    if (!data.answer) return
+    setHumanMode(!!data.human_mode || (!!data.need_human && !data.pending_confirmation))
+    if (!data.answer && !data.plan_steps?.length) return
     setMessages((prev) => [...prev, {
       id: data.message_id,
       role: 'assistant',
-      content: data.answer,
+      content: data.answer || '',
       need_human: data.need_human,
       sources: data.sources,
+      intent_label: data.intent_label,
+      plan_steps: data.plan_steps || [],
+      pending_confirmation: data.pending_confirmation || null,
     }])
+  }
+
+  const handleConfirm = async (confirmationId) => {
+    if (!confirmationId || loading) return
+    setLoading(true)
+    try {
+      const res = await confirmPublicAction(confirmationId, conversationId, nickname, activeCompanyId)
+      appendAssistant(res.data)
+    } catch {
+      setMessages((prev) => [...prev, {
+        role: 'assistant',
+        content: '确认失败，请稍后再试或转人工。',
+        error: true,
+      }])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSend = async (e) => {
@@ -242,7 +293,22 @@ export default function Chat() {
                   )}
                   <p className="whitespace-pre-wrap">{msg.content}</p>
 
-                  {msg.need_human && humanMode && (
+                  {msg.plan_steps?.length > 0 && (
+                    <PlanCard steps={msg.plan_steps} intentLabel={msg.intent_label} />
+                  )}
+
+                  {msg.pending_confirmation && (
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleConfirm(msg.pending_confirmation.id)}
+                      className="mt-2 w-full text-xs px-2 py-2 bg-red-50 border border-red-300 text-red-700 rounded-lg hover:bg-red-100 disabled:opacity-60"
+                    >
+                      确认提交给人工（不会自动打款）
+                    </button>
+                  )}
+
+                  {msg.need_human && humanMode && !msg.pending_confirmation && (
                     <div className="mt-2 px-2 py-1.5 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
                       已进入人工队列，坐席回复后会显示在这里
                     </div>
@@ -259,7 +325,7 @@ export default function Chat() {
                     </div>
                   )}
 
-                  {msg.need_human && !humanMode && msg.role === 'assistant' && !msg.isWelcome && (
+                  {msg.need_human && !humanMode && !msg.pending_confirmation && msg.role === 'assistant' && !msg.isWelcome && (
                     <button
                       type="button"
                       onClick={handleTransfer}
