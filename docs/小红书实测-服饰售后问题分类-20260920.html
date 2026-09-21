@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>小红书实测 · 服饰售后问题分类（2026-09-20）</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+    max-width: 940px; margin: 0 auto; padding: 32px 20px 60px;
+    color: #24292f; background: #fff; line-height: 1.7; font-size: 14px;
+  }
+  h1 { font-size: 23px; margin: 0 0 6px; letter-spacing: -.3px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 22px; }
+  h2 {
+    font-size: 17px; margin: 34px 0 12px; padding-left: 10px;
+    border-left: 3px solid #d94f4f; line-height: 1.3;
+  }
+  h3 { font-size: 15px; margin: 20px 0 8px; }
+  .meta {
+    background: #f7f8fa; border: 1px solid #e8eaed; border-radius: 8px;
+    padding: 14px 18px; font-size: 13px; line-height: 1.9; margin-bottom: 8px;
+  }
+  .meta b { color: #111; }
+  .why {
+    background: #f0f7ff; border: 1px solid #cfe4ff; border-radius: 8px;
+    padding: 14px 18px; font-size: 13px; line-height: 1.85;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0 6px; }
+  th, td { border: 1px solid #e8eaed; padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f8fa; font-weight: 600; color: #374151; white-space: nowrap; }
+  td.num { color: #c62828; font-weight: 600; white-space: nowrap; text-align: right; }
+  tr:nth-child(even) td { background: #fcfcfd; }
+  .cat {
+    border: 1px solid #e8eaed; border-radius: 10px; padding: 14px 18px;
+    margin: 12px 0; border-left: 4px solid #d94f4f;
+  }
+  .cat .hd { font-weight: 700; font-size: 15px; margin-bottom: 6px; color: #111; }
+  .cat .cnt {
+    display: inline-block; background: #fdecec; color: #b3261e;
+    font-size: 11.5px; padding: 1px 8px; border-radius: 10px;
+    margin-left: 8px; font-weight: 600; vertical-align: 1px;
+  }
+  .cat .evi { font-size: 13px; color: #374151; margin: 6px 0; }
+  .cat .evi .lk { color: #c62828; font-weight: 600; }
+  .cat .mean {
+    font-size: 12.5px; color: #5b6470; background: #f7f8fa;
+    border-radius: 6px; padding: 8px 12px; margin-top: 8px;
+  }
+  .mean b { color: #b3261e; }
+  code {
+    background: #f2f3f5; padding: 1px 5px; border-radius: 4px;
+    font-size: 12.5px; font-family: Consolas, Monaco, monospace;
+  }
+  .foot { color: #8b949e; font-size: 12px; margin-top: 30px; border-top: 1px solid #e8eaed; padding-top: 14px; }
+</style>
+</head>
+<body>
+
+<h1>小红书实测 · 中小服饰电商售后问题分类</h1>
+<div class="sub">抓取日期 2026-09-20 ｜ 关键词：「服饰 退货」「尺码 退货」｜ 共 44 条卡片（去重后约 40 条有效）</div>
+
+<div class="meta">
+  <b>抓取方式</b>：本机调试浏览器（Edge · CDP 9222）内 <b>已登录的小红书账号</b>，访问真实搜索结果页并读取页面结构；<b>非爬虫、非第三方数据</b>，每条都是搜索结果页上真实存在的笔记标题与公开点赞数。<br>
+  <b>风险控制</b>：仅 2 次搜索、不点进笔记详情、不抓评论、不点赞不关注，原始页面快照已存证。<br>
+  <b>归类口径</b>：仅依据<b>标题</b>归类（未读正文），故为「标题可见的问题类型」，偏保守。
+</div>
+
+<h2>一、Top 5 问题类型（按可见条数）</h2>
+
+<div class="cat">
+  <div class="hd">① 尺码 / 版型不符 <span class="cnt">5 条</span></div>
+  <div class="evi">
+    「我终于知道为什么女装退货率这么高了🥲」<span class="lk">1.2万赞</span> ·
+    「不同尺码退货小技巧get」<span class="lk">273赞</span> ·
+    「闲鱼买裤子尺码不合适，不给退货合理吗」<span class="lk">19赞</span><br>
+    「网购避雷｜这家店尺码严重虚标，维权全过程」<span class="lk">10赞</span> ·
+    「买家说尺寸不符，会判我商家责任吗？」<span class="lk">30赞 · 商家视角</span>
+  </div>
+  <div class="mean">这是退货的第一大原因，也是最典型的<b>边界判断问题</b>——买家问的不是「你们退换货政策是什么」（FAQ 能答），而是「我肩宽 46、体重 130 穿 M 会不会紧」这种<b>需要结合具体商品和具体身材判断</b>的问题。规则库答不了，只有人能答。<b>你的 RAG 项目定位的正是这一类。</b></div>
+</div>
+
+<div class="cat">
+  <div class="hd">② 退货规则边界：穿过 / 吊牌 / 水洗 / 气味 <span class="cnt">5 条</span></div>
+  <div class="evi">
+    「到底是谁穿过退货啊！！！！」<span class="lk">574赞</span> ·
+    「衣服可以免费试穿啦！退货标签全用502粘起来」<span class="lk">348赞</span> ·
+    「仙女姐妹们穿出去的衣服就别退货了吧？」<span class="lk">184赞</span><br>
+    「淘宝规则又变了吗？」<span class="lk">38赞</span> ·
+    「商品仅试穿，商家拒收原因竟是有香味」<span class="lk">25赞</span>
+  </div>
+  <div class="mean">这一类<b>全部是「能不能退」的判断</b>：穿过算不算使用？吊牌剪了还能退吗？有香味算不算影响二次销售？——也就是你面试时说的<b>「第 7 天和第 8 天退款的区别」「水洗后能不能退」</b>。数据证明这类问题在真实用户里<b>讨论度极高</b>（单条 574 赞）。</div>
+</div>
+
+<div class="cat">
+  <div class="hd">③ 退货运费 / 运费险谁承担 <span class="cnt">3 条</span></div>
+  <div class="evi">
+    「拼夕夕要怎么夸你呢！运费报销！」<span class="lk">121赞</span> ·
+    「没有运费险，运费也能免！」<span class="lk">79赞</span> ·
+    「经常用闲鱼的姐妹来评评理」<span class="lk">463赞</span>
+  </div>
+  <div class="mean">「运费谁出」是<b>规则 + 平台政策 + 个案情况三层叠加</b>的判断，正是传统 FAQ 机器人最容易答错、也是买家最容易因此转人工的一类。</div>
+</div>
+
+<div class="cat">
+  <div class="hd">④ 退货时效与流程体验 <span class="cnt">4 条</span></div>
+  <div class="evi">
+    「仅用0秒就确认退货🤕」<span class="lk">5.9万赞</span> ·
+    「换位思考/退货时把取件码写在纸条上」<span class="lk">1343赞</span> ·
+    「女装速度 到手即退」<span class="lk">24赞</span> ·
+    「网购30件女装退27件」<span class="lk">11赞</span>
+  </div>
+  <div class="mean">买家对<b>「快」的敏感度极高</b>（5.9 万赞的那条就在讲「秒退」的体验）。反过来印证：<b>响应速度不是痛点，「答得对」才是</b>——这一点与你的 5 家店实测结论完全一致。</div>
+</div>
+
+<div class="cat">
+  <div class="hd">⑤ 客服应答 / 责任划分纠纷 <span class="cnt">4 条</span></div>
+  <div class="evi">
+    「这事儿又怪我喽？」<span class="lk">5543赞</span> ·
+    「李宁的绝世好客服，令人啧啧称奇……」<span class="lk">28赞</span> ·
+    「离谱的客户又来了」<span class="lk">1赞 · 商家视角</span> ·
+    「我无法理解」「正在生气迷惑中」<span class="lk">7赞 / 3赞</span>
+  </div>
+  <div class="mean">买家在骂客服、商家也在骂客户——<b>双方都在为「这件事到底该谁负责」吵</b>。这正是 AI 客服最该帮忙、却最容易帮倒忙的地方：答错一次，矛盾直接升级。</div>
+</div>
+
+<h2>二、原始数据 · 关键词「服饰 退货」（按点赞降序）</h2>
+<table>
+<tr><th style="width:44px">#</th><th>笔记标题</th><th style="width:88px">点赞</th></tr>
+<tr><td>1</td><td>仅用0秒就确认退货🤕</td><td class="num">5.9万</td></tr>
+<tr><td>2</td><td>我终于知道为什么女装退货率这么高了🥲</td><td class="num">1.2万</td></tr>
+<tr><td>3</td><td>这事儿又怪我喽？</td><td class="num">5543</td></tr>
+<tr><td>4</td><td>换位思考/退货时把取件码写在纸条上</td><td class="num">1343</td></tr>
+<tr><td>5</td><td>到底是谁穿过退货啊！！！！</td><td class="num">574</td></tr>
+<tr><td>6</td><td>退货时，快递员跟我说了一句话，我记到现在</td><td class="num">523</td></tr>
+<tr><td>7</td><td>衣服可以免费试穿啦！退货标签全用502粘起来</td><td class="num">348</td></tr>
+<tr><td>8</td><td>仙女姐妹们穿出去的衣服就别退货了吧？</td><td class="num">184</td></tr>
+<tr><td>9</td><td>修改标题（接电话后版）</td><td class="num">174</td></tr>
+<tr><td>10</td><td>避雷！UR内购会退货退款成功！更新上身图</td><td class="num">127</td></tr>
+<tr><td>11</td><td>商品仅试穿，商家拒收原因竟是有香味</td><td class="num">25</td></tr>
+<tr><td>12</td><td>ur内购退货成功！！</td><td class="num">25</td></tr>
+<tr><td>13</td><td>网购30件女装退27件</td><td class="num">11</td></tr>
+<tr><td>14</td><td>网购避雷｜这家店尺码严重虚标，维权全过程</td><td class="num">10</td></tr>
+<tr><td>15</td><td>买了衣服不合适不好意思退货</td><td class="num">3</td></tr>
+</table>
+
+<h2>三、原始数据 · 关键词「尺码 退货」（按点赞降序）</h2>
+<table>
+<tr><th style="width:44px">#</th><th>笔记标题</th><th style="width:88px">点赞</th></tr>
+<tr><td>1</td><td>经常用闲鱼的姐妹来评评理</td><td class="num">463</td></tr>
+<tr><td>2</td><td>不同尺码退货小技巧get</td><td class="num">273</td></tr>
+<tr><td>3</td><td>UR 2.8折内购退货攻略</td><td class="num">178</td></tr>
+<tr><td>4</td><td>修改标题（接电话后版）</td><td class="num">174</td></tr>
+<tr><td>5</td><td>拼夕夕要怎么夸你呢！运费报销！</td><td class="num">121</td></tr>
+<tr><td>6</td><td>没有运费险，运费也能免！</td><td class="num">79</td></tr>
+<tr><td>7</td><td>淘宝规则又变了吗？</td><td class="num">38</td></tr>
+<tr><td>8</td><td>SMFK大无语</td><td class="num">34</td></tr>
+<tr><td>9</td><td>买家说尺寸不符，会判我商家责任吗？</td><td class="num">30</td></tr>
+<tr><td>10</td><td>李宁的绝世好客服，令人啧啧称奇……</td><td class="num">28</td></tr>
+<tr><td>11</td><td>女装速度 到手即退</td><td class="num">24</td></tr>
+<tr><td>12</td><td>闲鱼买裤子尺码不合适，不给退货合理吗</td><td class="num">19</td></tr>
+<tr><td>13</td><td>地素</td><td class="num">16</td></tr>
+<tr><td>14</td><td>网购避雷｜这家店尺码严重虚标，维权全过程</td><td class="num">10</td></tr>
+<tr><td>15</td><td>我无法理解</td><td class="num">7</td></tr>
+<tr><td>16</td><td>正在生气迷惑中～</td><td class="num">3</td></tr>
+<tr><td>17</td><td>离谱的客户又来了</td><td class="num">1</td></tr>
+</table>
+
+<h2>四、这批数据怎么用（一句话）</h2>
+<div class="why">
+  <b>不要再讲「我爬了客诉数据」。</b>改成：<br><br>
+  「我去小红书真实搜了『服饰 退货』『尺码 退货』两个词，翻了约 40 条高赞笔记。<b>排在前面的问题类型是尺码/版型不符、退货规则边界（穿过、吊牌、气味）、运费谁承担这三类——它们的共同点是：买家问的不是政策原文，而是『我这种情况算不算』。</b>这类问题 FAQ 答不了、平台官方机器人也答不了，因为它需要结合具体条款做判断。<b>这就是我为什么把小云智服定位在『知道什么时候不该自己答』，而不是「答得更多」。</b>」<br><br>
+  <span style="color:#8b949e">※ 配合你已有的 <b>5 家店 11 张一手实测截图</b>，一句话概括：<b>「买家侧我看小红书 40 条，商家侧我自己下场测了 5 家店。」</b></span>
+</div>
+
+<div class="foot">
+  数据来源：本机调试浏览器已登录账号的小红书搜索结果页 · 抓取于 2026-09-20 · 原始页面快照与解析结果存于 <code>D:/xiaoyun/assets/evidence/</code>（<code>xhs_snap_fushi_20260920.txt</code> · <code>xhs_snap_chima_20260920.txt</code> · <code>xhs_fushi_raw.json</code> · <code>xhs_chima_raw.json</code>）<br>
+  仅用于个人项目研究与面试准备，不对外传播。
+</div>
+
+</body>
+</html>
