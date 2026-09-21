@@ -77,3 +77,37 @@ docs/AI产品经理面试宝典*.md
 *.pem
 *.key
 *secret*
+
+# ============================================
+# 2026-09-21 补漏：上面那批规则漏掉了实存文件
+# （实测有 30 个敏感文件会被 git add -A 直接带进公开仓库）
+# ============================================
+
+# ---- 凭据：Server酱 SendKey 与推送脚本（绝不提交）----
+docs/.push-key.txt
+docs/push-wechat.py
+
+# ---- 面试/求职弹药：统一走 interview-notes 仓库 ----
+docs/AI动态-*.md
+docs/AI面试*.md
+docs/PM框架速查卡.md
+docs/【最紧急】*.md
+docs/两份面试宝典*.md
+docs/两件面试宝典*.md
+docs/六度人和-*.md
+docs/半岛FDE*.md
+docs/安徽爱学堂*.md
+docs/爱学堂-*.md
+docs/小云智服-面试*.md
+docs/竞争力全方位诊断-挑刺版.md
+docs/精臣智慧-*.md
+docs/通用业务面*.md
+docs/面试宝典补充-*.md
+docs/_归档/
+
+# ---- 第三方平台原始抓取数据（不入库，只保留自己的归类成果）----
+assets/evidence/xhs_*_raw.json
+assets/evidence/xhs_snap_*.txt
+
+# ---- 他人内容的翻译稿（版权风险）----
+docs/产品布楠-*.md
