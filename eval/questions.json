@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "description": "服饰电商售后客服评测集 - 54题（含原17题），按意图分层，含 expected_behavior / difficulty",
+  "description": "服饰电商售后客服评测集 - 67题（在原17题黄金集上扩展），按品类/难度/expected_behavior 分层，含 expected_keywords",
   "questions": [
     {
       "id": 1,
