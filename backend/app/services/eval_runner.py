@@ -8,7 +8,13 @@ from pathlib import Path
 from app.services.ai_suggestion import _calc_confidence
 from app.services.rag import search_knowledge
 
-EVAL_DIR = Path(__file__).resolve().parent.parent.parent.parent / "eval"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# Docker 中代码与评测集都挂载在 /app；本机开发时评测集位于项目根目录。
+# 先选择存在的 /app/eval，避免容器误读镜像根目录 /eval 中的旧题库。
+EVAL_DIR = next(
+  (candidate for candidate in (Path("/app/eval"), PROJECT_ROOT / "eval") if candidate.exists()),
+  PROJECT_ROOT / "eval",
+)
 QUESTIONS_FILE = EVAL_DIR / "questions.json"
 
 
