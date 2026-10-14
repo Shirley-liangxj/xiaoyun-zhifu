@@ -39,7 +39,7 @@ export default function Evaluation() {
         <div>
           <h2 className="text-lg font-semibold text-gray-800">RAG 评测基线</h2>
           <p className="text-sm text-gray-400 mt-0.5">
-            67 题分层评测集 · 检索质量 + 转人工判断 + 阈值混淆矩阵
+            40 题售后回归评测集（演示环境）· 检索质量 + 转人工判断 + 阈值混淆矩阵
           </p>
         </div>
         <button onClick={handleRun} disabled={loading}

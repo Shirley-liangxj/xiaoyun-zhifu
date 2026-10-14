@@ -18,7 +18,7 @@ def run_eval(
   db: Session = Depends(get_db),
 ):
   """
-  对 eval/questions.json 中的 17 道评测题执行 RAG 检索，
+  对 eval/questions.json 中的 40 道售后回归题执行 RAG 检索，
   返回检索命中率、平均置信度、逐题详情。
   """
   try:
