@@ -18,7 +18,15 @@ from app.services.errors import ExternalServiceError
 from app.services.llm import LLMResult
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-CASES_FILE = PROJECT_ROOT / "eval" / "agent_cases.json"
+
+
+def _resolve_eval_dir(project_root: Path, container_eval: Path = Path("/app/eval")) -> Path:
+  """Docker 优先读取持久卷内评测集，本机开发回退到项目根目录。"""
+  return container_eval if container_eval.exists() else project_root / "eval"
+
+
+EVAL_DIR = _resolve_eval_dir(PROJECT_ROOT)
+CASES_FILE = EVAL_DIR / "agent_cases.json"
 
 
 def load_agent_cases() -> list[dict]:

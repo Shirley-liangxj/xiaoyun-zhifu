@@ -20,3 +20,46 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400;
 }
+
+@layer components {
+  .ds-page {
+    @apply min-h-screen bg-[#F0F4F8] text-gray-800 px-5 py-8 md:px-10 lg:px-16;
+  }
+  .ds-hero {
+    @apply max-w-6xl mx-auto flex flex-col gap-6 md:flex-row md:items-end md:justify-between bg-[#12352D] text-white rounded-3xl p-7 md:p-10 shadow-lg;
+  }
+  .ds-hero h1 { @apply text-3xl md:text-5xl font-semibold tracking-tight mt-2; }
+  .ds-hero p:not(.ds-eyebrow) { @apply mt-3 text-emerald-50 max-w-2xl; }
+  .ds-eyebrow { @apply text-xs font-semibold tracking-[0.22em] text-emerald-200; }
+  .ds-nav, .ds-row { @apply flex flex-wrap items-center gap-3; }
+  .ds-section { @apply max-w-6xl mx-auto mt-12; }
+  .ds-section-heading { @apply flex gap-4 items-start mb-5; }
+  .ds-section-heading > span { @apply text-sm font-semibold text-primary border-t-2 border-primary pt-2; }
+  .ds-section-heading h2 { @apply text-2xl font-semibold; }
+  .ds-section-heading p { @apply text-sm text-gray-500 mt-1; }
+  .ds-color-grid { @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4; }
+  .ds-color-card { @apply bg-white border border-gray-200 rounded-2xl p-4 flex gap-4 items-center shadow-sm; }
+  .ds-swatch { @apply w-14 h-14 rounded-xl shrink-0 border border-black/5; }
+  .ds-color-card strong, .ds-color-card code { @apply block; }
+  .ds-color-card code { @apply text-xs text-gray-500 mt-0.5; }
+  .ds-color-card p { @apply text-xs text-gray-500 mt-1; }
+  .ds-demo-grid { @apply grid grid-cols-1 md:grid-cols-2 gap-5; }
+  .ds-card { @apply bg-white border border-gray-200 rounded-2xl p-6 shadow-sm; }
+  .ds-card h3 { @apply font-semibold mb-4; }
+  .ds-btn { @apply inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary; }
+  .ds-btn-primary { @apply bg-primary text-white hover:bg-primary-dark; }
+  .ds-btn-secondary { @apply bg-white text-primary border border-primary hover:bg-primary-light; }
+  .ds-btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
+  .ds-badge { @apply inline-flex rounded-full px-3 py-1 text-xs font-medium; }
+  .ds-badge-success { @apply bg-emerald-50 text-emerald-700; }
+  .ds-badge-warning { @apply bg-amber-50 text-amber-700; }
+  .ds-badge-danger { @apply bg-red-50 text-red-700; }
+  .ds-label { @apply block text-xs font-medium text-gray-600 mb-2; }
+  .ds-input { @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light; }
+  .ds-stat-card p { @apply text-sm text-gray-500; }
+  .ds-stat-card strong { @apply block text-xl text-primary mt-2; }
+  .ds-stat-card small { @apply block text-xs text-gray-400 mt-2; }
+  .ds-rule-grid { @apply grid grid-cols-1 md:grid-cols-3 gap-4; }
+  .ds-rule-grid article { @apply bg-white border-l-4 border-primary rounded-r-xl p-5 shadow-sm; }
+  .ds-rule-grid p { @apply text-sm text-gray-500 mt-2; }
+}

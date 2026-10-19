@@ -11,6 +11,7 @@ import QuickReplies from './pages/QuickReplies'
 import Settings from './pages/Settings'
 import Evaluation from './pages/Evaluation'
 import Chat from './pages/Chat'
+import DesignSystem from './pages/DesignSystem'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -37,10 +38,13 @@ export default function App() {
         <Routes>
           {/* 买家端 - 无需登录 */}
           <Route path="/chat" element={<Chat />} />
+          <Route path="/design-system.html" element={<DesignSystem />} />
+          <Route path="/design-system" element={<DesignSystem />} />
 
           {/* 公开路由 */}
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="/eval.html" element={<Navigate to="/evaluation" replace />} />
 
           {/* 受保护路由 */}
           <Route path="/" element={<PrivateRoute><MainLayout /></PrivateRoute>}>

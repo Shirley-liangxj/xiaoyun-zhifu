@@ -5,6 +5,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from app.agent.intent_router import detect_unsupported_capability
 from app.services.ai_suggestion import _calc_confidence
 from app.services.rag import search_knowledge
 
@@ -27,13 +28,13 @@ def load_questions() -> list[dict]:
   return data.get("questions", [])
 
 
-def _predict_transfer(confidence: float, sources: list, threshold: float) -> bool:
-  """与买家端 public_chat 一致：低置信或无检索结果则转人工"""
-  return confidence < threshold or not sources
+def _predict_transfer(message: str, confidence: float, sources: list, threshold: float) -> bool:
+  """与买家端一致：先判断能力边界，再使用置信度兜底。"""
+  return bool(detect_unsupported_capability(message)) or confidence < threshold or not sources
 
 
-def _actual_behavior(confidence: float, sources: list, threshold: float) -> str:
-  return "transfer_human" if _predict_transfer(confidence, sources, threshold) else "answer"
+def _actual_behavior(message: str, confidence: float, sources: list, threshold: float) -> str:
+  return "transfer_human" if _predict_transfer(message, confidence, sources, threshold) else "answer"
 
 
 def _keyword_coverage_ok(keywords: list[str], keyword_hits: list[str], retrieved: bool) -> bool:
@@ -112,7 +113,7 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
 
     confidence = _calc_confidence(sources)
     retrieved = len(sources) > 0
-    actual = _actual_behavior(confidence, sources, confidence_threshold)
+    actual = _actual_behavior(question, confidence, sources, confidence_threshold)
     is_behavior_correct = actual == expected_behavior
 
     if retrieved:

@@ -14,7 +14,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.agent.intent_router import INTENT_LABELS, detect_high_risk
+from app.agent.intent_router import INTENT_LABELS, detect_high_risk, detect_unsupported_capability
 from app.agent.tool_registry import list_tool_schemas, run_tool
 from app.agent.trajectory import append_trace
 from app.models import Conversation, HumanReviewAction, Message
@@ -324,7 +324,54 @@ def run_agent_turn(
       human_mode=_is_human_mode(db, conv),
     )
 
-  # ③ function calling 主循环
+  # ③ 能力边界守卫：相似资料置信度再高，也不能猜实时库存、订单或缺失政策
+  capability_reason = detect_unsupported_capability(message)
+  if capability_reason:
+    plan_steps = [{
+      "id": "capability_guard",
+      "title": "能力边界判断",
+      "status": "done",
+      "detail": capability_reason,
+      "demo": False,
+    }]
+    ai_msg, answer, confidence, need_human, sources_data, plan_steps = _do_transfer(
+      db, conv, company_settings,
+      confidence=0.35,
+      plan_steps=plan_steps,
+      detail="超出当前可核验的数据边界，已进入待人工队列",
+    )
+    intent = {
+      "intent": "transfer",
+      "label": INTENT_LABELS["transfer"],
+      "confidence": 1.0,
+      "source": "capability_guard",
+    }
+    db.commit()
+    append_trace({
+      "conversation_id": conv.id,
+      "company_id": company_id,
+      "input": message,
+      "intent": intent,
+      "tools": [],
+      "output": answer,
+      "needs_human": True,
+      "grounded": False,
+      "source": "capability_guard",
+      "llm_calls": 0,
+    })
+    return _base_result(
+      conv, ai_msg,
+      answer=answer,
+      confidence=confidence,
+      need_human=need_human,
+      sources=sources_data,
+      intent=intent,
+      plan_steps=plan_steps,
+      pending_confirmation=None,
+      human_mode=_is_human_mode(db, conv),
+    )
+
+  # ④ function calling 主循环
   tools_schema = list_tool_schemas()
   messages: list[dict] = [
     {"role": "system", "content": AGENT_SYSTEM_PROMPT},

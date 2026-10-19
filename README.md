@@ -99,7 +99,7 @@ python scripts/seed_data.py
 
 ## 在线效果看板（作品集演示组件）
 
-访问 **http://47.116.143.103:8080/eval.html** 可直接查看实时「RAG 评测 + 运营看板」：
+登录坐席端后访问 **http://47.116.143.103:8080/evaluation** 查看实时评测；旧链接 **/eval.html** 会自动跳转到该页面：
 
 - RAG 评测：评测题数、检索命中率、平均置信度、高置信率、badcase 数、逐题明细
 - 运营看板：总会话数、消息数、AI 采纳率、知识库文档（已索引/总数）、工单分布
@@ -109,9 +109,9 @@ python scripts/seed_data.py
 
 为避免「vibe coding 每次改 UI 风格漂移」，本项目落地了一套可被 AI 调用的设计系统（方法论参考小红书「机器坏人 AI 版」《如何用 AI 维护一套设计系统》）：
 
-- **品牌色系统化**：原有品牌绿 `#1D9E75` 扩展为 50–900 完整色阶，并定义 success / warning / danger / info 语义色，收敛原先散落的 blue/indigo/orange/green/red。
-- **组件基类约束**：`src/index.css` 的 `@layer components` 定义 `.ds-card` / `.ds-btn-*` / `.ds-badge-*` / `.ds-input` / `.ds-stat-*` 等基类；页面只能复用，新增组件先扩展此处。
-- **AI 协作硬约束**：`.cursorrules` 写死——颜色只能来自 token、布局只能复用 `.ds-*`、禁止硬编码与新增主色。让 AI 改界面从「随心所欲」变为「在约束下选择」。
+- **品牌色与状态色**：复用品牌绿 `#1D9E75`、深色和浅色变体，并为成功、待确认、转人工等业务状态定义固定样式。
+- **组件基类约束**：`src/index.css` 的 `@layer components` 定义 `.ds-card` / `.ds-btn-*` / `.ds-badge-*` / `.ds-input` 等基类；设计系统页复用这些基类展示真实效果。
+- **AI 协作约束**：新增界面先复用现有品牌色与 `.ds-*` 组件基类；确需新增状态时，再统一扩展组件层。
 - **反哺机制**：重复结构抽组件、好风格改 token 一处联动全站。
 
 在线查看完整 Token 与组件真实渲染：**http://47.116.143.103:8080/design-system.html**
