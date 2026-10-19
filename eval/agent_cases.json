@@ -1,0 +1,186 @@
+{
+  "version": 2,
+  "description": "小云智服 Agent 主循环离线回归集；mock 外部 LLM 与检索边界，真实运行 Agent 循环、工具注册表、数据库状态与中断逻辑，不代表真实模型线上准确率。",
+  "execution_mode": "mock_llm_real_agent_loop",
+  "cases": [
+    {
+      "id": "agent-001",
+      "input": "七天无理由退货需要满足什么条件？",
+      "risk_level": "low",
+      "reason": "标准政策问题应检索知识库后回答。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "answered",
+      "expected_tools": ["search_policy"],
+      "expected_args": [{"query": "七天无理由退货需要满足什么条件？"}],
+      "expected": {"need_human": false, "high_risk_blocked": false},
+      "llm_steps": [
+        {"tool_calls": [{"name": "search_policy", "arguments": {"query": "七天无理由退货需要满足什么条件？"}}]},
+        {"content": "根据售后政策，商品需保持完好并在签收后七天内申请。"}
+      ],
+      "tool_outputs": {
+        "search_policy": {"ok": true, "source": "mock_external_rag", "needs_human": false, "result": {"confidence": 0.92, "sources": [{"doc_id": 1, "title": "退换货政策", "category": "售后政策", "text": "七天内且商品完好可申请", "score": 0.92}]}, "summary": "命中退换货政策"}
+      }
+    },
+    {
+      "id": "agent-002",
+      "input": "我的订单 DEMO-1001 到哪了？",
+      "risk_level": "low",
+      "reason": "提供订单号后可查询演示订单状态。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "answered",
+      "expected_tools": ["query_order"],
+      "expected_args": [{"order_id": "DEMO-1001"}],
+      "expected": {"need_human": false, "high_risk_blocked": false},
+      "llm_steps": [
+        {"tool_calls": [{"name": "query_order", "arguments": {"order_id": "DEMO-1001"}}]},
+        {"content": "订单已发货，正在运输中。"}
+      ]
+    },
+    {
+      "id": "agent-003",
+      "input": "我想退款，订单 DEMO-1001 买了 5 天，金额 199 元",
+      "risk_level": "high",
+      "reason": "资金动作只做试算，并进入买家确认。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "pending_buyer",
+      "expected_tools": ["query_order", "calc_refund"],
+      "expected_args": [{"order_id": "DEMO-1001"}, {"order_id": "DEMO-1001", "amount": 199, "days_since_purchase": 5}],
+      "expected": {"need_human": true, "high_risk_blocked": false},
+      "llm_steps": [
+        {"tool_calls": [
+          {"name": "query_order", "arguments": {"order_id": "DEMO-1001"}},
+          {"name": "calc_refund", "arguments": {"order_id": "DEMO-1001", "amount": 199, "days_since_purchase": 5}}
+        ]}
+      ]
+    },
+    {
+      "id": "agent-004",
+      "input": "你们服务太差了我要投诉并曝光你们",
+      "risk_level": "high",
+      "reason": "投诉与曝光必须在调用大模型前拦截。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "waiting_human",
+      "expected_tools": [],
+      "expected_args": [],
+      "expected": {"need_human": true, "high_risk_blocked": true, "llm_calls": 0},
+      "llm_steps": []
+    },
+    {
+      "id": "agent-005",
+      "input": "帮我写一个 Python 爬虫",
+      "risk_level": "medium",
+      "reason": "超出售后范围，应明确转人工而不是自行回答。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "waiting_human",
+      "expected_tools": ["transfer_to_human"],
+      "expected_args": [{"reason": "超出售后范围"}],
+      "expected": {"need_human": true, "high_risk_blocked": false},
+      "llm_steps": [
+        {"tool_calls": [{"name": "transfer_to_human", "arguments": {"reason": "超出售后范围"}}]}
+      ]
+    },
+    {
+      "id": "agent-006",
+      "input": "我的快递到哪了？",
+      "risk_level": "low",
+      "reason": "物流查询缺少订单号，必须追问。",
+      "should_ask_followup": true,
+      "expected_terminal_state": "needs_clarification",
+      "expected_tools": ["query_order"],
+      "expected_args": [{}],
+      "expected": {"need_human": false, "high_risk_blocked": false},
+      "llm_steps": [
+        {"tool_calls": [{"name": "query_order", "arguments": {}}]}
+      ]
+    },
+    {
+      "id": "agent-007",
+      "input": "退款金额怎么算？",
+      "risk_level": "medium",
+      "reason": "退款试算缺订单号、金额和天数，必须追问，不能造默认值。",
+      "should_ask_followup": true,
+      "expected_terminal_state": "needs_clarification",
+      "expected_tools": ["calc_refund"],
+      "expected_args": [{}],
+      "expected": {"need_human": false, "high_risk_blocked": false},
+      "llm_steps": [
+        {"tool_calls": [{"name": "calc_refund", "arguments": {}}]}
+      ]
+    },
+    {
+      "id": "agent-008",
+      "input": "帮我处理售后",
+      "risk_level": "high",
+      "reason": "模型调用未知工具时必须硬失败并转人工。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "waiting_human",
+      "expected_tools": ["unknown_tool"],
+      "expected_args": [{}],
+      "expected": {"need_human": true, "high_risk_blocked": false},
+      "llm_steps": [
+        {"tool_calls": [{"name": "unknown_tool", "arguments": {}}]},
+        {"content": "错误地声称已经完成"}
+      ]
+    },
+    {
+      "id": "agent-009",
+      "input": "订单 DEMO-1001 要退款",
+      "risk_level": "high",
+      "reason": "错误参数类型不能进入退款计算。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "waiting_human",
+      "expected_tools": ["calc_refund"],
+      "expected_args": [{"order_id": "DEMO-1001", "amount": "一百九十九", "days_since_purchase": 5}],
+      "expected": {"need_human": true, "high_risk_blocked": false},
+      "llm_steps": [
+        {"tool_calls": [{"name": "calc_refund", "arguments": {"order_id": "DEMO-1001", "amount": "一百九十九", "days_since_purchase": 5}}]}
+      ]
+    },
+    {
+      "id": "agent-010",
+      "input": "请查一下退货政策",
+      "risk_level": "medium",
+      "reason": "大模型服务异常时必须进入明确人工兜底态。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "waiting_human",
+      "expected_tools": [],
+      "expected_args": [],
+      "expected": {"need_human": true, "high_risk_blocked": false},
+      "llm_steps": [{"error": "mock llm unavailable"}]
+    },
+    {
+      "id": "agent-011",
+      "input": "订单 DEMO-1001 的状态？",
+      "risk_level": "medium",
+      "reason": "连续工具调用达到最大轮数后必须兜底转人工。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "waiting_human",
+      "expected_tools": ["query_order", "query_order", "query_order", "query_order"],
+      "expected_args": [{"order_id": "DEMO-1001"}, {"order_id": "DEMO-1001"}, {"order_id": "DEMO-1001"}, {"order_id": "DEMO-1001"}],
+      "expected": {"need_human": true, "high_risk_blocked": false, "llm_calls": 4},
+      "llm_steps": [
+        {"tool_calls": [{"name": "query_order", "arguments": {"order_id": "DEMO-1001"}}]},
+        {"tool_calls": [{"name": "query_order", "arguments": {"order_id": "DEMO-1001"}}]},
+        {"tool_calls": [{"name": "query_order", "arguments": {"order_id": "DEMO-1001"}}]},
+        {"tool_calls": [{"name": "query_order", "arguments": {"order_id": "DEMO-1001"}}]}
+      ]
+    },
+    {
+      "id": "agent-012",
+      "input": "这件商品支持退货吗？",
+      "risk_level": "medium",
+      "reason": "知识检索低置信时必须中断并转人工。",
+      "should_ask_followup": false,
+      "expected_terminal_state": "waiting_human",
+      "expected_tools": ["search_policy"],
+      "expected_args": [{"query": "这件商品支持退货吗？"}],
+      "expected": {"need_human": true, "high_risk_blocked": false},
+      "llm_steps": [
+        {"tool_calls": [{"name": "search_policy", "arguments": {"query": "这件商品支持退货吗？"}}]}
+      ],
+      "tool_outputs": {
+        "search_policy": {"ok": true, "source": "mock_external_rag", "needs_human": false, "result": {"confidence": 0.1, "sources": []}, "summary": "未命中可靠资料"}
+      }
+    }
+  ]
+}

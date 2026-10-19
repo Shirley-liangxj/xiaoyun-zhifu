@@ -19,7 +19,7 @@ class EvalQuestionResult(BaseModel):
   top_source: Optional[str] = None
   keyword_hits: list[str] = []
   keyword_hit_rate: Optional[float] = None
-  answer_quality_ok: Optional[bool] = None
+  keyword_coverage_ok: Optional[bool] = None
   error: Optional[str] = None
 
 
@@ -37,7 +37,7 @@ class CategoryEvalStat(BaseModel):
   category: str
   total: int
   behavior_accuracy: float
-  answer_accuracy: Optional[float] = None
+  keyword_coverage: Optional[float] = None
   transfer_accuracy: Optional[float] = None
   false_transfer: int = 0
   missed_transfer: int = 0
@@ -49,7 +49,7 @@ class EvalReport(BaseModel):
   retrieval_hit_rate: float
   avg_confidence: float
   high_confidence_rate: float
-  answer_accuracy_rate: float = 0
+  keyword_coverage_rate: float = 0
   transfer_judgment_accuracy: float = 0
   transfer_accuracy_rate: float = 0
   confusion_matrix: ConfusionMatrix

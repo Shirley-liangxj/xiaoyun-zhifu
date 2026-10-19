@@ -4,6 +4,7 @@ from app.models.company_settings import CompanySettings
 from app.models.conversation import Conversation, Message
 from app.models.knowledge import KnowledgeDoc
 from app.models.knowledge_gap import KnowledgeGap
+from app.models.human_review import HumanReviewAction, HumanReviewEvent
 from app.models.quick_reply import QuickReply
 from app.models.ticket import Ticket
 from app.models.user import User
@@ -14,6 +15,8 @@ __all__ = [
   "User",
   "KnowledgeDoc",
   "KnowledgeGap",
+  "HumanReviewAction",
+  "HumanReviewEvent",
   "QuickReply",
   "Conversation",
   "Message",

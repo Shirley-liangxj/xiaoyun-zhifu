@@ -6,6 +6,11 @@ from sqlalchemy.orm import Session
 from app.models import KnowledgeGap
 
 
+def resolution_outcome(*, indexed: bool) -> dict[str, object]:
+  """把索引结果映射为可对外承诺的缺口状态。"""
+  return {"status": "resolved", "ok": True} if indexed else {"status": "pending", "ok": False}
+
+
 def record_knowledge_gap(
   db: Session,
   company_id: int,

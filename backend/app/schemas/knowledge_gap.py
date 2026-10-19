@@ -12,6 +12,10 @@ class KnowledgeGapOut(BaseModel):
   hit_count: int
   status: str
   suggested_answer: Optional[str] = None
+  knowledge_doc_id: Optional[int] = None
+  resolution_version: int = 0
+  last_error: Optional[str] = None
+  resolved_at: Optional[datetime] = None
   last_confidence: Optional[float] = None
   created_at: datetime
   last_seen_at: datetime
@@ -28,4 +32,3 @@ class KnowledgeGapResolve(BaseModel):
 
 class KnowledgeGapResolveOut(KnowledgeGapOut):
   """解决知识缺口后的响应"""
-  knowledge_doc_id: Optional[int] = None

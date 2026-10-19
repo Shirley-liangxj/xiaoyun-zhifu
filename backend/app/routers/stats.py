@@ -12,6 +12,7 @@ from app.schemas.stats import (
   PriorityBreakdown,
   TicketStatusBreakdown,
 )
+from app.services.ai_adoption import summarize_adoption
 
 router = APIRouter(prefix="/api/stats", tags=["数据统计"])
 
@@ -44,17 +45,12 @@ def get_dashboard_stats(
     Message.role.in_(["customer", "agent"]),
   ).scalar() or 0
 
-  # AI 建议统计
-  ai_total = db.query(func.count(Message.id)).filter(
+  # AI 建议统计：采纳率只以人工已处理建议为分母，自动发送与待处理单独展示。
+  ai_statuses = [row[0] for row in db.query(Message.suggestion_status).filter(
     Message.conversation_id.in_(conv_ids),
     Message.role == "ai_suggestion",
-  ).scalar() or 0
-  ai_accepted = db.query(func.count(Message.id)).filter(
-    Message.conversation_id.in_(conv_ids),
-    Message.role == "ai_suggestion",
-    Message.is_sent == True,
-  ).scalar() or 0
-  accept_rate = round(ai_accepted / ai_total * 100, 1) if ai_total > 0 else 0.0
+  ).all()]
+  adoption = summarize_adoption(ai_statuses)
 
   # 工单统计
   total_tickets = db.query(func.count(Ticket.id)).filter(
@@ -92,9 +88,15 @@ def get_dashboard_stats(
       resolved_tickets=ticket_count_by_status("resolved"),
       total_knowledge_docs=total_docs,
       indexed_docs=indexed_docs,
-      ai_suggestions=ai_total,
-      ai_accepted=ai_accepted,
-      ai_accept_rate=accept_rate,
+      ai_suggestions=adoption["human_suggestions"],
+      ai_accepted=adoption["accepted"] + adoption["edited_and_accepted"],
+      ai_original_accepted=adoption["accepted"],
+      ai_edited_accepted=adoption["edited_and_accepted"],
+      ai_rejected=adoption["rejected"],
+      ai_pending=adoption["pending"],
+      ai_auto_sent=adoption["auto_sent"],
+      ai_processed=adoption["processed_suggestions"],
+      ai_accept_rate=adoption["accept_rate"],
     ),
     ticket_status=TicketStatusBreakdown(
       open=ticket_count_by_status("open"),

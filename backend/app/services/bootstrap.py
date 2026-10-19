@@ -154,6 +154,9 @@ def seed_conversations(db: Session, company_id: int, user_id: int) -> dict[str, 
         # 待人工会话里的 AI 回复作为待采纳建议
         if scenario["status"] == "waiting_human":
           kwargs["is_sent"] = False
+          kwargs["suggestion_status"] = "pending"
+        else:
+          kwargs["suggestion_status"] = "auto_sent"
       if role == "agent":
         kwargs["sender_id"] = user_id
       db.add(Message(**kwargs))
@@ -247,6 +250,7 @@ def seed_minimal_demo(db: Session, company_id: int, user_id: int) -> bool:
     confidence=0.88,
     sources='[{"title":"质量问题处理","category":"售后政策","score":0.91}]',
     is_sent=False,
+    suggestion_status="pending",
   ))
   db.add(Ticket(
     company_id=company_id,

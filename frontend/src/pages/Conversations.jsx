@@ -4,6 +4,7 @@ import {
   listConversations, createConversation, getConversation,
   sendMessage, closeConversation, triggerAiSuggest,
   acceptSuggestion, rejectSuggestion, acceptConversation,
+  listConversationReviews, decideConversationReview,
 } from '../api/conversations'
 import { listQuickReplies, useQuickReply } from '../api/quickReplies'
 import { createTicket } from '../api/tickets'
@@ -69,6 +70,49 @@ function SuggestionCard({ msg, onAccept, onEdit, onReject, processing }) {
   )
 }
 
+function ReviewCard({ review, onDecision, processing }) {
+  const [note, setNote] = useState('')
+  const waiting = review.status === 'waiting_review'
+  const label = {
+    pending_buyer: '待买家确认',
+    waiting_review: '待坐席审核',
+    approved: '已批准',
+    rejected: '已拒绝',
+    need_more_info: '待补材料',
+  }[review.status] || review.status
+  return (
+    <div className="mx-auto max-w-[92%] border border-orange-200 bg-orange-50 rounded-xl p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-orange-800">{review.title}</p>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-white text-orange-700">{label}</span>
+      </div>
+      <p className="text-xs text-gray-600 mt-2">{review.detail}</p>
+      <p className="text-xs text-red-600 mt-2">风险原因：{review.risk_reason || '涉及资金动作，需要人工审核'}</p>
+      <div className="grid grid-cols-3 gap-2 mt-3 text-xs text-gray-600">
+        <span>订单：{review.payload?.order_id || '未提供'}</span>
+        <span>订单金额：¥{review.payload?.order_amount ?? '—'}</span>
+        <span>建议退款：¥{review.payload?.refund_amount ?? '—'}</span>
+      </div>
+      {waiting && (
+        <>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
+            placeholder="审核备注；选择补材料时请写明缺什么"
+            className="w-full mt-3 px-3 py-2 text-xs border border-orange-200 rounded-lg bg-white" />
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => onDecision(review, 'approved', note)} disabled={processing}
+              className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg disabled:opacity-60">批准</button>
+            <button onClick={() => onDecision(review, 'rejected', note)} disabled={processing}
+              className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg disabled:opacity-60">拒绝</button>
+            <button onClick={() => onDecision(review, 'need_more_info', note)} disabled={processing || !note.trim()}
+              className="px-3 py-1.5 text-xs border border-orange-300 text-orange-700 rounded-lg disabled:opacity-40">补材料</button>
+          </div>
+        </>
+      )}
+      {review.review_note && <p className="text-xs text-gray-500 mt-2">审核备注：{review.review_note}</p>}
+    </div>
+  )
+}
+
 const STATUS_FILTERS = [
   { value: '', label: '全部' },
   { value: 'waiting_human', label: '待人工' },
@@ -96,6 +140,7 @@ export default function Conversations() {
   const [activeId, setActiveId] = useState(null)
   const [activeConv, setActiveConv] = useState(null)
   const [messages, setMessages] = useState([])
+  const [reviews, setReviews] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -167,9 +212,13 @@ export default function Conversations() {
       setShowQuickReplies(false)
       setSaveKb(null)
     }
-    const res = await getConversation(id)
+    const [res, reviewRes] = await Promise.all([
+      getConversation(id),
+      listConversationReviews(id),
+    ])
     setActiveConv(res.data)
     setMessages(res.data.messages || [])
+    setReviews(reviewRes.data || [])
   }
 
   const openSaveToKnowledge = (agentMsg) => {
@@ -199,22 +248,25 @@ export default function Conversations() {
     try {
       const question = saveKb.question.trim()
       const answer = saveKb.answer.trim()
-      const res = await createDoc({
-        title: question.slice(0, 100),
-        content: `问：${question}\n\n答：${answer}`,
-        category: '缺口补充',
-      })
-      try {
-        const gapsRes = await listGaps('pending')
-        const matched = (gapsRes.data || []).filter(
-          (g) => g.question.trim() === question || g.question.includes(question) || question.includes(g.question.trim())
-        )
-        await Promise.all(matched.map((g) => resolveGap(g.id, answer, false)))
-      } catch {
-        /* ignore */
+      const gapsRes = await listGaps()
+      const matched = (gapsRes.data || []).filter(
+        (g) => ['pending', 'indexing_failed'].includes(g.status)
+          && (g.question.trim() === question || g.question.includes(question) || question.includes(g.question.trim()))
+      )
+      let docId
+      if (matched.length > 0) {
+        const resolved = await resolveGap(matched[0].id, answer, true)
+        docId = resolved.data.knowledge_doc_id
+      } else {
+        const created = await createDoc({
+          title: question.slice(0, 100),
+          content: `问：${question}\n\n答：${answer}`,
+          category: '缺口补充',
+        })
+        docId = created.data.id
       }
       setSaveKb(null)
-      alert(`已写入知识库（文档 #${res.data.id}），下次同类问题可被检索`)
+      alert(`已写入知识库（文档 #${docId}），下次同类问题可被检索`)
     } catch (err) {
       alert(err.response?.data?.detail || '写入知识库失败')
     } finally {
@@ -353,6 +405,18 @@ export default function Conversations() {
     }
   }
 
+  const handleReviewDecision = async (review, decision, note) => {
+    setProcessing(true)
+    try {
+      await decideConversationReview(activeId, review.id, decision, note)
+      await refreshMessages()
+    } catch (err) {
+      alert(err.response?.data?.detail || '审核失败')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   const handleClose = async () => {
     if (!activeId) return
     if (!confirm('确认关闭该会话？')) return
@@ -398,11 +462,13 @@ export default function Conversations() {
     ai_suggestion: 'bg-purple-50 text-purple-800',
   }
 
-  const chatMessages = messages.filter((m) => m.role !== 'ai_suggestion' || m.is_sent)
-  const pendingSuggestions = messages.filter((m) => m.role === 'ai_suggestion' && !m.is_sent)
+  const chatMessages = messages.filter((m) => m.role !== 'ai_suggestion' || (m.is_sent && m.suggestion_status !== 'rejected'))
+  const pendingSuggestions = messages.filter((m) => m.role === 'ai_suggestion' && (m.suggestion_status === 'pending' || !m.is_sent))
   const canReply = activeConv && activeConv.status !== 'closed'
   const hasCustomerMsg = messages.some((m) => m.role === 'customer')
-  const needsAccept = activeConv?.status === 'waiting_human'
+  const hasWaitingReview = reviews.some((review) => review.status === 'waiting_review')
+  const needsAccept = activeConv?.status === 'waiting_human' && !hasWaitingReview
+  const replyBlocked = needsAccept || hasWaitingReview
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] gap-3">
@@ -563,6 +629,9 @@ export default function Conversations() {
                     processing={processing}
                   />
                 ))}
+                {reviews.map((review) => (
+                  <ReviewCard key={review.id} review={review} onDecision={handleReviewDecision} processing={processing} />
+                ))}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -571,15 +640,15 @@ export default function Conversations() {
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder={needsAccept ? '请先点击「接入」再回复...' : '回复买家（将同步到买家端）...'}
-                    disabled={needsAccept}
+                    placeholder={hasWaitingReview ? '请先在审核卡中批准、拒绝或要求补充材料...' : (needsAccept ? '请先点击「接入」再回复...' : '回复买家（将同步到买家端）...')}
+                    disabled={replyBlocked}
                     className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
                   />
                   <button type="button" onClick={openQuickReplies}
                     className="px-3 py-2 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50">
                     话术
                   </button>
-                  <button type="submit" disabled={sending || needsAccept}
+                  <button type="submit" disabled={sending || replyBlocked}
                     className="px-5 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary-dark disabled:opacity-60">
                     发送
                   </button>

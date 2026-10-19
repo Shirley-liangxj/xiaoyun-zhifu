@@ -122,6 +122,7 @@ def generate_suggestion(
     confidence=confidence,
     sources=sources_json,
     is_sent=False,
+    suggestion_status="pending",
   )
   db.add(suggestion)
   db.commit()

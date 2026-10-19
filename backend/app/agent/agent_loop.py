@@ -10,17 +10,18 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from pathlib import Path
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.agent.intent_router import INTENT_LABELS, detect_high_risk
 from app.agent.tool_registry import list_tool_schemas, run_tool
 from app.agent.trajectory import append_trace
-from app.models import Conversation, Message
+from app.models import Conversation, HumanReviewAction, Message
 from app.services.ai_suggestion import generate_suggestion
 from app.services.errors import ExternalServiceError
 from app.services.knowledge_gap import record_knowledge_gap
+from app.services.human_review import add_review_event
 from app.services.llm import llm_service
 from app.services.public_chat import (
   TRANSFER_NOTE,
@@ -31,7 +32,6 @@ from app.services.settings import get_or_create_settings
 
 logger = logging.getLogger(__name__)
 
-PENDING_PATH = Path(__file__).resolve().parents[2] / "data" / "pending_confirmations.json"
 MAX_TOOL_ROUNDS = 4
 
 AGENT_SYSTEM_PROMPT = """你是服饰电商售后客服助手，只能处理服饰售后相关问题（退换货、尺码、物流、质量、支付、售后政策），可通过工具查询政策、订单与退款试算。
@@ -50,22 +50,6 @@ AGENT_SYSTEM_PROMPT = """你是服饰电商售后客服助手，只能处理服�
 回复要求：亲切口语、简洁（一般不超过 150 字），不要暴露内部工具名。"""
 
 
-def _load_pending() -> dict:
-  if not PENDING_PATH.exists():
-    return {}
-  try:
-    with open(PENDING_PATH, encoding="utf-8") as f:
-      return json.load(f)
-  except Exception:
-    return {}
-
-
-def _save_pending(data: dict) -> None:
-  PENDING_PATH.parent.mkdir(parents=True, exist_ok=True)
-  with open(PENDING_PATH, "w", encoding="utf-8") as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
-
-
 def _base_result(
   conv: Conversation,
   ai_msg: Message | None,
@@ -79,6 +63,14 @@ def _base_result(
   pending_confirmation: dict | None,
   human_mode: bool,
 ) -> dict:
+  if pending_confirmation:
+    terminal_state = "pending_buyer"
+  elif intent.get("interrupt") == "needs_clarification":
+    terminal_state = "needs_clarification"
+  elif conv.status == "waiting_human":
+    terminal_state = "waiting_human"
+  else:
+    terminal_state = "answered"
   return {
     "conversation_id": conv.id,
     "message_id": ai_msg.id if ai_msg else 0,
@@ -91,6 +83,7 @@ def _base_result(
     "intent_label": intent.get("label"),
     "plan_steps": plan_steps,
     "pending_confirmation": pending_confirmation,
+    "terminal_state": terminal_state,
   }
 
 
@@ -108,6 +101,7 @@ def _save_ai_message(
     confidence=confidence,
     sources=json.dumps(sources_data, ensure_ascii=False),
     is_sent=True,
+    suggestion_status="auto_sent",
   )
   db.add(ai_msg)
   db.commit()
@@ -204,6 +198,7 @@ def _do_transfer(
 
 
 def _build_refund_pending(
+  db: Session,
   company_id: int,
   conv: Conversation,
   customer_name: str,
@@ -213,21 +208,25 @@ def _build_refund_pending(
   confirmation_id = str(uuid.uuid4())
   pending = {
     "id": confirmation_id,
-    "action": "refund_execute",
-    "title": "退款执行待确认",
+    "action": "refund_review",
+    "title": "退款建议待审核",
     "detail": refund_out.get("summary", ""),
     "payload": result,
     "demo": True,
   }
-  store = _load_pending()
-  store[confirmation_id] = {
-    "company_id": company_id,
-    "conversation_id": conv.id,
-    "customer_name": customer_name,
-    "payload": result,
-    "status": "pending",
-  }
-  _save_pending(store)
+  db.add(HumanReviewAction(
+    id=confirmation_id,
+    company_id=company_id,
+    conversation_id=conv.id,
+    customer_name=customer_name,
+    action="refund_review",
+    title="退款建议待审核",
+    detail=refund_out.get("summary", ""),
+    payload=json.dumps(result, ensure_ascii=False),
+    status="pending_buyer",
+    risk_reason="退款涉及资金动作，必须由坐席审核；系统仅提供演示试算。",
+  ))
+  db.commit()
   answer = (
     f"{refund_out.get('summary', '')}\n\n"
     "请点击下方「确认提交给人工」后，坐席将按演示流程处理；"
@@ -403,6 +402,29 @@ def run_agent_turn(
           "demo": demo,
         })
 
+        # 缺少业务关键参数时直接追问，不允许工具自行补造演示参数。
+        if out.get("needs_clarification"):
+          answer = out.get("summary") or "请补充必要信息后再试。"
+          confidence = 1.0
+          plan_steps[-1]["status"] = "needs_input"
+          plan_steps[-1]["detail"] = answer
+          interrupted = True
+          interrupt_reason = "needs_clarification"
+          break
+
+        # 未知工具、参数校验失败或工具异常不能继续生成“已完成”。
+        if not out.get("ok") and (out.get("source") == "system" or out.get("error_code")):
+          ai_msg, answer, confidence, need_human, sources_data, plan_steps = _do_transfer(
+            db, conv, company_settings,
+            confidence=0.2,
+            sources_data=sources_data,
+            plan_steps=plan_steps,
+            detail=out.get("summary") or "工具调用失败，已转人工",
+          )
+          interrupted = True
+          interrupt_reason = name or "tool_error"
+          break
+
         # —— search_policy：知识缺口回流 + 低置信硬中断 ——
         if name == "search_policy":
           res = out.get("result") or {}
@@ -450,16 +472,16 @@ def run_agent_turn(
           if name == "calc_refund":
             # HITL 确认卡：不立刻改 waiting_human
             pending, answer = _build_refund_pending(
-              company_id, conv, customer_name, out
+              db, company_id, conv, customer_name, out
             )
             confidence = 0.75
             need_human = True
             ai_msg = _save_ai_message(db, conv, answer, confidence, sources_data)
             plan_steps.append({
               "id": "hitl",
-              "title": "待人工确认执行",
+              "title": "提交人工审核",
               "status": "needs_confirm",
-              "detail": "高风险动作，需买家确认后进入坐席队列",
+              "detail": "高风险退款建议，需买家确认后提交坐席审核；系统不会自动退款",
               "demo": False,
             })
             interrupted = True
@@ -567,20 +589,37 @@ def confirm_pending_action(
   conversation_id: int | None = None,
   customer_name: str = "访客",
 ) -> dict:
-  store = _load_pending()
-  item = store.get(confirmation_id)
-  if not item or item.get("company_id") != company_id:
+  item = db.query(HumanReviewAction).filter(
+    HumanReviewAction.id == confirmation_id,
+    HumanReviewAction.company_id == company_id,
+  ).first()
+  if not item:
     raise ValueError("确认单不存在或已失效")
-  if item.get("status") != "pending":
+  if item.status not in {"pending", "pending_buyer"}:
     raise ValueError("该确认单已处理")
 
+  if conversation_id is not None and conversation_id != item.conversation_id:
+    raise ValueError("确认单与会话不匹配")
+
   conv = get_or_create_conversation(
-    db, company_id, conversation_id or item.get("conversation_id"), customer_name
+    db, company_id, item.conversation_id, customer_name
   )
-  payload = item.get("payload") or {}
-  item["status"] = "confirmed"
-  store[confirmation_id] = item
-  _save_pending(store)
+  try:
+    payload = json.loads(item.payload or "{}")
+  except json.JSONDecodeError:
+    payload = {}
+  from_status = item.status
+  item.status = "waiting_review"
+  item.buyer_confirmed_at = datetime.utcnow()
+  add_review_event(
+    db,
+    item,
+    from_status=from_status,
+    to_status="waiting_review",
+    actor_type="buyer",
+    note="买家确认提交人工审核",
+  )
+  db.commit()
 
   conv.status = "waiting_human"
   answer = (
@@ -612,7 +651,9 @@ def confirm_pending_action(
     "intent": "action",
     "intent_label": "操作类",
     "plan_steps": [
-      {"id": "hitl", "title": "人工确认", "status": "done", "detail": "买家已确认，已进待人工", "demo": True}
+      {"id": "hitl", "title": "买家确认", "status": "done", "detail": "买家已确认，退款建议已提交坐席审核", "demo": True}
     ],
     "pending_confirmation": None,
+    "review_status": "waiting_review",
+    "terminal_state": "waiting_review",
   }

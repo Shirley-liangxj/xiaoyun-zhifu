@@ -30,8 +30,33 @@ def calc_refund(
   返回 needs_human=True，禁止自动执行。
   """
   parsed_amount, parsed_days = _parse_amount_and_days(message)
-  amt = amount if amount is not None else (parsed_amount if parsed_amount is not None else 199.0)
-  days = days_since_purchase if days_since_purchase is not None else (parsed_days if parsed_days is not None else 5)
+  amt = amount if amount is not None else parsed_amount
+  days = days_since_purchase if days_since_purchase is not None else parsed_days
+  missing_fields = []
+  if not order_id:
+    missing_fields.append("order_id")
+  if amt is None:
+    missing_fields.append("order_amount")
+  if days is None:
+    missing_fields.append("days_since_purchase")
+  if missing_fields:
+    labels = {
+      "order_id": "订单号",
+      "order_amount": "订单金额",
+      "days_since_purchase": "签收后的天数",
+    }
+    return {
+      "ok": False,
+      "source": "demo_rule",
+      "needs_human": False,
+      "needs_clarification": True,
+      "result": {
+        "missing_fields": missing_fields,
+        "auto_execute": False,
+        "demo": True,
+      },
+      "summary": "请补充" + "、".join(labels[field] for field in missing_fields) + "，我再为您进行退款试算。",
+    }
 
   worn = bool(re.search(r"穿过|穿了|沾了|污损", message))
   if worn:
@@ -60,7 +85,7 @@ def calc_refund(
     "source": "demo_rule",
     "needs_human": True,
     "result": {
-      "order_id": order_id or "DEMO-PENDING",
+      "order_id": order_id,
       "order_amount": amt,
       "days_since_purchase": days,
       "refund_amount": refund,

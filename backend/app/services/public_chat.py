@@ -29,7 +29,7 @@ def _visible_to_buyer(msg: Message) -> bool:
   if msg.role in ("customer", "agent"):
     return True
   if msg.role == "ai_suggestion" and msg.is_sent:
-    return True
+    return msg.suggestion_status in (None, "auto_sent", "legacy_sent")
   return False
 
 
@@ -122,6 +122,7 @@ def transfer_to_human(db: Session, company_id: int, conversation_id: int | None,
     confidence=0.2,
     sources="[]",
     is_sent=True,
+    suggestion_status="auto_sent",
   )
   db.add(ai_msg)
   db.commit()
@@ -215,6 +216,7 @@ def chat_for_buyer(
     confidence=confidence,
     sources=json.dumps(sources_data, ensure_ascii=False),
     is_sent=is_sent,
+    suggestion_status="auto_sent",
   )
   db.add(ai_msg)
   db.commit()

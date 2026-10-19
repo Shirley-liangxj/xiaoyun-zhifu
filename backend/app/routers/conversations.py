@@ -1,4 +1,5 @@
 """会话路由 - 会话与消息管理 + AI 回复建议"""
+import json
 import logging
 from datetime import datetime
 
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Conversation, Message, User
+from app.models import Conversation, HumanReviewAction, HumanReviewEvent, Message, User
 from app.schemas.conversation import (
   AcceptSuggestionRequest,
   ConversationCreate,
@@ -17,12 +18,42 @@ from app.schemas.conversation import (
   MessageCreate,
   MessageOut,
 )
+from app.schemas.human_review import HumanReviewDecision, HumanReviewOut
+from app.services.human_review import decide_review_action, list_review_actions
 from app.services.ai_suggestion import generate_suggestion
 from app.services.knowledge_gap import record_knowledge_gap
 from app.services.settings import get_or_create_settings
 
 router = APIRouter(prefix="/api/conversations", tags=["会话"])
 logger = logging.getLogger(__name__)
+
+
+def _review_out(db: Session, action: HumanReviewAction) -> HumanReviewOut:
+  try:
+    payload = json.loads(action.payload or "{}")
+  except json.JSONDecodeError:
+    payload = {}
+  events = db.query(HumanReviewEvent).filter(
+    HumanReviewEvent.action_id == action.id,
+    HumanReviewEvent.company_id == action.company_id,
+  ).order_by(HumanReviewEvent.created_at.asc()).all()
+  return HumanReviewOut(
+    id=action.id,
+    conversation_id=action.conversation_id,
+    customer_name=action.customer_name,
+    action=action.action,
+    title=action.title,
+    detail=action.detail or "",
+    payload=payload,
+    status=action.status,
+    risk_reason=action.risk_reason or "",
+    buyer_confirmed_at=action.buyer_confirmed_at,
+    reviewer_id=action.reviewer_id,
+    reviewed_at=action.reviewed_at,
+    review_note=action.review_note or "",
+    created_at=action.created_at,
+    events=events,
+  )
 
 
 def _build_conversation_out(conv: Conversation, db: Session) -> ConversationOut:
@@ -236,7 +267,8 @@ def accept_suggestion(
   if not suggestion:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="建议不存在或已处理")
 
-  content = body.content.strip() if body.content else suggestion.content
+  original_content = suggestion.content.strip()
+  content = body.content.strip() if body.content else original_content
 
   # 创建坐席消息
   agent_msg = Message(
@@ -250,11 +282,59 @@ def accept_suggestion(
 
   # 标记建议已处理
   suggestion.is_sent = True
+  suggestion.suggestion_status = (
+    "edited_and_accepted" if content != original_content else "accepted"
+  )
   if conv.status == "waiting_human":
     conv.status = "active"
   db.commit()
   db.refresh(agent_msg)
   return agent_msg
+
+
+@router.get("/{conversation_id}/reviews", response_model=list[HumanReviewOut], summary="获取会话审核单")
+def list_conversation_reviews(
+  conversation_id: int,
+  status_filter: str | None = None,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  conv = db.query(Conversation).filter(
+    Conversation.id == conversation_id,
+    Conversation.company_id == current_user.company_id,
+  ).first()
+  if not conv:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+  actions = list_review_actions(
+    db,
+    company_id=current_user.company_id,
+    conversation_id=conversation_id,
+    status_filter=status_filter,
+  )
+  return [_review_out(db, action) for action in actions]
+
+
+@router.post("/{conversation_id}/reviews/{review_id}/decision", response_model=HumanReviewOut, summary="坐席审核退款建议")
+def decide_conversation_review(
+  conversation_id: int,
+  review_id: str,
+  body: HumanReviewDecision,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  try:
+    action = decide_review_action(
+      db,
+      company_id=current_user.company_id,
+      conversation_id=conversation_id,
+      review_id=review_id,
+      reviewer_id=current_user.id,
+      decision=body.decision,
+      note=body.note,
+    )
+  except ValueError as exc:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+  return _review_out(db, action)
 
 
 @router.post("/{conversation_id}/suggestions/{suggestion_id}/reject", summary="忽略 AI 建议")
@@ -281,7 +361,8 @@ def reject_suggestion(
   if not suggestion:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="建议不存在或已处理")
 
-  db.delete(suggestion)
+  suggestion.suggestion_status = "rejected"
+  suggestion.is_sent = True
   db.commit()
   return {"message": "已忽略该建议", "id": suggestion_id}
 
@@ -303,6 +384,17 @@ def accept_conversation(
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="会话已关闭")
   if conv.status != "waiting_human":
     return {"message": "会话已在处理中", "id": conversation_id, "status": conv.status}
+
+  waiting_review = db.query(HumanReviewAction).filter(
+    HumanReviewAction.company_id == current_user.company_id,
+    HumanReviewAction.conversation_id == conversation_id,
+    HumanReviewAction.status == "waiting_review",
+  ).first()
+  if waiting_review:
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="该会话有待审核退款建议，请先在审核卡中批准、拒绝或要求补充材料",
+    )
 
   conv.status = "active"
   tip = Message(

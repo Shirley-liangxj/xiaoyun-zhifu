@@ -33,3 +33,11 @@ export const closeConversation = (id) =>
 /** 坐席接入待人工会话 */
 export const acceptConversation = (id) =>
   api.post(`/api/conversations/${id}/accept`)
+
+/** 获取会话内的结构化人工审核单 */
+export const listConversationReviews = (conversationId, status) =>
+  api.get(`/api/conversations/${conversationId}/reviews`, { params: status ? { status_filter: status } : {} })
+
+/** 坐席对审核单做批准、拒绝或补材料决策 */
+export const decideConversationReview = (conversationId, reviewId, decision, note = '') =>
+  api.post(`/api/conversations/${conversationId}/reviews/${reviewId}/decision`, { decision, note })

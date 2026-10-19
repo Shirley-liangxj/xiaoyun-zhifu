@@ -171,8 +171,37 @@ def run_tool(name: str, message: str, **kwargs: Any) -> dict:
       "ok": False,
       "source": "system",
       "needs_human": False,
+      "error_code": "unknown_tool",
       "result": {"error": f"unknown tool: {name}"},
       "summary": f"未知工具 {name}",
+    }
+  properties = spec.parameters.get("properties", {})
+  type_map = {
+    "string": str,
+    "number": (int, float),
+    "integer": int,
+    "boolean": bool,
+    "object": dict,
+    "array": list,
+  }
+  invalid = []
+  for key, value in kwargs.items():
+    if key not in properties or value is None:
+      continue
+    expected_type = properties[key].get("type")
+    python_type = type_map.get(expected_type)
+    wrong_type = python_type and not isinstance(value, python_type)
+    bool_as_number = expected_type in {"number", "integer"} and isinstance(value, bool)
+    if wrong_type or bool_as_number:
+      invalid.append(key)
+  if invalid:
+    return {
+      "ok": False,
+      "source": "system",
+      "needs_human": True,
+      "error_code": "invalid_arguments",
+      "result": {"invalid_fields": invalid},
+      "summary": f"工具 {name} 参数类型错误：{', '.join(invalid)}",
     }
   out = spec.run(message, **kwargs)
   out.setdefault("tool", name)

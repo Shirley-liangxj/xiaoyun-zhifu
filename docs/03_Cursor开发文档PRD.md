@@ -508,11 +508,11 @@ v1已有18页HTML原型在 `成品包/02_原型HTML/` 目录下，开发前端�
 
 > **Agent 控制层改造（第十四节）** 的完整设计与实测记录见本文件第十四节。
 
-**评测口径说明（面试红线）：** 上述准确率为 67 题评测集（合成 golden set）口径，不等于线上真实解决率；真实 query 分布需上线后回流，这是已知的"数据飞轮"下一步。
+**评测口径说明（面试红线）：** 上述准确率为历史 67 题评测集（合成 golden set）口径，不等于线上真实解决率；当前正式回归集为 40 题，真实 query 分布需上线后回流，这是已知的"数据飞轮"下一步。
 
-### 12.1 67 题评测集结构（`eval/questions.json`）
+### 12.1 历史 67 题评测集结构（归档；当前 `eval/questions.json` 为 40 题）
 
-文件头 `description` 可能仍写「含原 17 题」——那是演进说明；**现行总量为 67**。
+文件头的「含原 17 题」只是演进说明；**本节 67 题数据为历史归档，现行正式总量为 40**。
 
 | 分层维度 | 取值 | 用途 |
 |----------|------|------|
@@ -771,14 +771,14 @@ v1已有18页HTML原型在 `成品包/02_原型HTML/` 目录下，开发前端�
 | `backend/app/agent/tools/knowledge_search.py` | **新增**（包装 `search_knowledge`） |
 | `backend/app/agent/tools/human_transfer.py` | **新增**（恒 `needs_human=True`） |
 | `backend/app/agent/tools/order_query.py` | 新增 `fallback_to_first` 开关与 `need_order_id` 返回 |
-| `pending_confirmations.json` | **无需改动**（确认流程本就独立于工具注册表） |
+| `human_review_actions` | **已替代旧 pending_confirmations.json**（确认状态进入数据库；仍需补过期/并发策略） |
 
 **不受影响的模块**：`knowledge.py` / `conversations.py` / `tickets.py` / `stats.py` 及前端 Dashboard、Tickets、Conversations、Knowledge、Evaluation 页面——出参契约未变。本次改造是 `agent/` 包内的增量改动。
 
 ### 14.9 已知局限
 
 1. **无自动化测试兜底**，验收靠手工跑场景 + 读 traces。
-2. `pending_confirmations.json` 无过期机制、无锁、全量读写（改造前既有缺陷，属"演示级存储 vs 生产级"的已知取舍）。
+2. 旧 `pending_confirmations.json` 已不再作为运行时状态源；`human_review_actions` 仍无过期机制、无锁，属于当前已知取舍。
 3. **Agent 工具调用能力未纳入自动化评测**：67 题评测集只覆盖"该答 / 该转"，不覆盖"该调哪个工具"，需补一份工具选择小样本题库。
 4. 主循环中 `confidence` 对 `query_order` 命中时保留默认展示值 0.7，与工具真实返回值不同源（仅影响前端展示数值）。
 5. `run_tool(name, message, company_id=..., fallback_to_first=False, **args)`：若模型在 args 里传入同名参数会触发 duplicate kwarg——当前 schema 未暴露这两个字段，属潜在坑。

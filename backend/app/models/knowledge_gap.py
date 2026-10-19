@@ -23,9 +23,15 @@ class KnowledgeGap(Base):
   question: Mapped[str] = mapped_column(Text, nullable=False, comment="用户问题")
   hit_count: Mapped[int] = mapped_column(Integer, default=1, comment="出现次数")
   status: Mapped[str] = mapped_column(
-    String(20), default="pending", comment="pending/resolved/ignored"
+    String(20), default="pending", comment="pending/indexing_failed/resolved/ignored"
   )
   suggested_answer: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="补充答案")
+  knowledge_doc_id: Mapped[Optional[int]] = mapped_column(
+    ForeignKey("knowledge_docs.id"), nullable=True, comment="用于解决缺口的知识文档"
+  )
+  resolution_version: Mapped[int] = mapped_column(Integer, default=0, comment="处理尝试版本")
+  last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="最近索引失败原因")
+  resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
   last_confidence: Mapped[Optional[float]] = mapped_column(nullable=True, comment="最近置信度")
   created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
   last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

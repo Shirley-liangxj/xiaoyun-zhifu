@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { runEval } from '../api/eval'
+import { runAgentEval, runEval } from '../api/eval'
 
 function confidenceColor(c) {
   if (c >= 0.7) return 'text-green-600'
@@ -15,7 +15,9 @@ function behaviorBadge(correct) {
 
 export default function Evaluation() {
   const [report, setReport] = useState(null)
+  const [agentReport, setAgentReport] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [agentLoading, setAgentLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handleRun = async () => {
@@ -28,6 +30,19 @@ export default function Evaluation() {
       setError(err.response?.data?.detail || '评测失败，请检查 API Key 和知识库索引')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRunAgent = async () => {
+    setAgentLoading(true)
+    setError('')
+    try {
+      const res = await runAgentEval()
+      setAgentReport(res.data)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Agent 控制层评测失败')
+    } finally {
+      setAgentLoading(false)
     }
   }
 
@@ -46,6 +61,10 @@ export default function Evaluation() {
           className="px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-60">
           {loading ? '评测中...' : '运行评测'}
         </button>
+        <button onClick={handleRunAgent} disabled={agentLoading}
+          className="ml-2 px-5 py-2 text-sm border border-primary text-primary rounded-lg hover:bg-primary-light disabled:opacity-60">
+          {agentLoading ? 'Agent 评测中...' : '运行 Agent 评测'}
+        </button>
       </div>
 
       {error && (
@@ -57,7 +76,7 @@ export default function Evaluation() {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {[
               { title: '检索命中率', value: `${report.retrieval_hit_rate}%`, desc: `${report.total} 题`, color: 'text-blue-600' },
-              { title: '回答准确率', value: `${report.answer_accuracy_rate}%`, desc: '应答题 · 关键词覆盖≥50%', color: 'text-indigo-600' },
+              { title: '关键词覆盖达标率', value: `${report.keyword_coverage_rate}%`, desc: '应答题 · 仅代表检索文本覆盖，不等于生成答案正确', color: 'text-indigo-600' },
               { title: '转人工判断准确率', value: `${report.transfer_judgment_accuracy}%`, desc: '行为与期望一致', color: 'text-primary' },
               { title: '转人工准确率', value: `${report.transfer_accuracy_rate}%`, desc: '超出范围类转对率', color: 'text-orange-600' },
               { title: '平均置信度', value: report.avg_confidence, desc: `阈值 ${report.confidence_threshold ?? 0.6}`, color: 'text-gray-700' },
@@ -111,7 +130,7 @@ export default function Evaluation() {
                     <th className="text-left px-5 py-2 font-medium">分类</th>
                     <th className="text-left px-5 py-2 font-medium">题数</th>
                     <th className="text-left px-5 py-2 font-medium">行为准确率</th>
-                    <th className="text-left px-5 py-2 font-medium">回答准确率</th>
+                    <th className="text-left px-5 py-2 font-medium">关键词覆盖达标率</th>
                     <th className="text-left px-5 py-2 font-medium">转人工准确率</th>
                     <th className="text-left px-5 py-2 font-medium">误转</th>
                     <th className="text-left px-5 py-2 font-medium">漏转</th>
@@ -123,7 +142,7 @@ export default function Evaluation() {
                       <td className="px-5 py-2.5 font-medium text-gray-800">{s.category}</td>
                       <td className="px-5 py-2.5 text-gray-500">{s.total}</td>
                       <td className="px-5 py-2.5">{s.behavior_accuracy}%</td>
-                      <td className="px-5 py-2.5">{s.answer_accuracy != null ? `${s.answer_accuracy}%` : '—'}</td>
+                      <td className="px-5 py-2.5">{s.keyword_coverage != null ? `${s.keyword_coverage}%` : '—'}</td>
                       <td className="px-5 py-2.5">{s.transfer_accuracy != null ? `${s.transfer_accuracy}%` : '—'}</td>
                       <td className="px-5 py-2.5 text-red-500">{s.false_transfer}</td>
                       <td className="px-5 py-2.5 text-orange-500">{s.missed_transfer}</td>
@@ -176,11 +195,59 @@ export default function Evaluation() {
         </>
       )}
 
+      {agentReport && (
+        <div className="bg-white rounded-xl shadow-sm p-5">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Agent 主循环离线回归</h3>
+              <p className="text-xs text-gray-400 mt-1">{agentReport.message}</p>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700">{agentReport.execution_mode}</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div><p className="text-xs text-gray-500">工具序列</p><p className="text-xl font-semibold text-primary">{agentReport.tool_sequence_accuracy}%</p></div>
+            <div><p className="text-xs text-gray-500">参数抽取</p><p className="text-xl font-semibold text-primary">{agentReport.parameter_accuracy}%</p></div>
+            <div><p className="text-xs text-gray-500">必要追问</p><p className="text-xl font-semibold text-primary">{agentReport.followup_accuracy}%</p></div>
+            <div><p className="text-xs text-gray-500">终态命中</p><p className="text-xl font-semibold text-primary">{agentReport.terminal_state_accuracy}%</p></div>
+            <div><p className="text-xs text-gray-500">高危漏放</p><p className="text-xl font-semibold text-red-600">{agentReport.high_risk_missed_count}</p></div>
+            <div><p className="text-xs text-gray-500">误转</p><p className="text-xl font-semibold text-orange-600">{agentReport.false_transfer_count}</p></div>
+            <div><p className="text-xs text-gray-500">受控回归通过</p><p className="text-xl font-semibold text-primary">{agentReport.end_to_end_success_rate}%</p></div>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-3">mock 仅替代外部 LLM/RAG 返回；Agent 循环、工具注册、数据库状态与中断分支真实执行。该结果不能外推为真实模型线上准确率。</p>
+          <div className="overflow-x-auto mt-4 border border-gray-100 rounded-lg">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500">
+                <tr>
+                  <th className="text-left px-3 py-2">场景</th>
+                  <th className="text-left px-3 py-2">工具轨迹</th>
+                  <th className="text-left px-3 py-2">终态</th>
+                  <th className="text-left px-3 py-2">LLM 次数</th>
+                  <th className="text-left px-3 py-2">结果</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {agentReport.results?.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-3 py-2 max-w-xs" title={row.reason}>{row.id} · {row.input}</td>
+                    <td className="px-3 py-2 text-gray-600">{row.tool_sequence.length ? row.tool_sequence.join(' → ') : '无工具'}</td>
+                    <td className="px-3 py-2">{row.terminal_state}</td>
+                    <td className="px-3 py-2">{row.trajectory?.llm_calls ?? '—'}</td>
+                    <td className={`px-3 py-2 font-medium ${row.passed ? 'text-green-600' : 'text-red-500'}`}>
+                      {row.passed ? '通过' : row.failure_reason || '失败'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {!report && !loading && (
         <div className="bg-white rounded-xl shadow-sm p-12 text-center">
           <p className="text-4xl mb-3">📊</p>
           <p className="text-gray-500 text-sm">点击「运行评测」开始 RAG 基线测试</p>
-          <p className="text-gray-400 text-xs mt-2">请确保已配置 LLM_API_KEY 并完成知识库索引</p>
+          <p className="text-gray-400 text-xs mt-2">RAG 评测需完成知识库索引；Agent 离线评测不调用外部模型</p>
         </div>
       )}
     </div>

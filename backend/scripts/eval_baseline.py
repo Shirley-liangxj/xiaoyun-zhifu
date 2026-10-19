@@ -1,4 +1,6 @@
-"""有/无 RAG 消融对照：准确率 + token + 延迟。
+"""有/无 RAG 消融对照：关键词覆盖、分流正确率、token 与延迟。
+
+这里的“回答关键词覆盖率”只检查生成文本是否覆盖预设关键词，不等于事实正确率。
 
 从 backend 目录运行：
   python scripts/eval_baseline.py --limit 3 --arms baseline
@@ -258,7 +260,7 @@ def _arm_summary(rows: list[dict]) -> dict:
     categories[cat] = {
       "n": len(items),
       "answer_n": len(ans),
-      "answer_accuracy": _acc(ans),
+      "answer_keyword_coverage_rate": _acc(ans),
       "overall_accuracy": _acc(items),
     }
 
@@ -272,7 +274,7 @@ def _arm_summary(rows: list[dict]) -> dict:
     "n": len(rows),
     "answer_n": len(answer_rows),
     "transfer_n": len(transfer_rows),
-    "answer_accuracy": _acc(answer_rows),
+    "answer_keyword_coverage_rate": _acc(answer_rows),
     "transfer_accuracy": _acc(transfer_rows),
     "overall_accuracy": _acc(rows),
     "llm_called_count": n_called,
@@ -301,7 +303,7 @@ def _fmt(v, width: int, digits: int | None = None) -> str:
 def _print_table(summaries: dict[str, dict], model: str) -> None:
   headers = [
     ("arm", 10),
-    ("ans%", 8),
+    ("kw%", 8),
     ("xfer%", 8),
     ("all%", 8),
     ("llm_n", 7),
@@ -320,7 +322,7 @@ def _print_table(summaries: dict[str, dict], model: str) -> None:
   for arm, s in summaries.items():
     cells = [
       _fmt(arm, 10),
-      _fmt(s["answer_accuracy"], 8, 2),
+      _fmt(s["answer_keyword_coverage_rate"], 8, 2),
       _fmt(s["transfer_accuracy"], 8, 2),
       _fmt(s["overall_accuracy"], 8, 2),
       _fmt(s["llm_called_count"], 7),
@@ -347,12 +349,12 @@ def _print_table(summaries: dict[str, dict], model: str) -> None:
 
     print("差值（RAG - baseline）:")
     print(f"  overall_accuracy  {_sub(b['overall_accuracy'], r['overall_accuracy'])} 百分点")
-    print(f"  answer_accuracy   {_sub(b['answer_accuracy'], r['answer_accuracy'])} 百分点")
+    print(f"  answer_keyword_coverage_rate {_sub(b['answer_keyword_coverage_rate'], r['answer_keyword_coverage_rate'])} 百分点")
     print(f"  transfer_accuracy {_sub(b['transfer_accuracy'], r['transfer_accuracy'])} 百分点")
     print(f"  avg_total_tokens  {_sub(b['avg_total_tokens'], r['avg_total_tokens'])}")
     print(f"  latency_p50_ms    {_sub(b['latency_p50_ms'], r['latency_p50_ms'])}")
 
-  print("\n按 category（answer_accuracy / overall_accuracy）:")
+  print("\n按 category（answer_keyword_coverage_rate / overall_accuracy）:")
   cats = set()
   for s in summaries.values():
     cats.update(s["by_category"].keys())
@@ -361,7 +363,7 @@ def _print_table(summaries: dict[str, dict], model: str) -> None:
     for arm, s in summaries.items():
       c = s["by_category"].get(cat, {})
       parts.append(
-        f"{arm} ans={c.get('answer_accuracy')} all={c.get('overall_accuracy')} (n={c.get('n', 0)})"
+        f"{arm} answer_keywords={c.get('answer_keyword_coverage_rate')} all={c.get('overall_accuracy')} (n={c.get('n', 0)})"
       )
     print("  " + " | ".join(parts))
 
@@ -415,7 +417,9 @@ def main() -> None:
 
     delta = {
       "overall_accuracy_pp": _sub(b["overall_accuracy"], r["overall_accuracy"]),
-      "answer_accuracy_pp": _sub(b["answer_accuracy"], r["answer_accuracy"]),
+      "answer_keyword_coverage_rate_pp": _sub(
+        b["answer_keyword_coverage_rate"], r["answer_keyword_coverage_rate"]
+      ),
       "transfer_accuracy_pp": _sub(b["transfer_accuracy"], r["transfer_accuracy"]),
       "avg_total_tokens": _sub(b["avg_total_tokens"], r["avg_total_tokens"]),
       "latency_p50_ms": _sub(b["latency_p50_ms"], r["latency_p50_ms"]),

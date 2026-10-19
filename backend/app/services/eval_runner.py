@@ -36,8 +36,8 @@ def _actual_behavior(confidence: float, sources: list, threshold: float) -> str:
   return "transfer_human" if _predict_transfer(confidence, sources, threshold) else "answer"
 
 
-def _answer_quality_ok(keywords: list[str], keyword_hits: list[str], retrieved: bool) -> bool:
-  """回答类题目：检索命中且关键词覆盖达标"""
+def _keyword_coverage_ok(keywords: list[str], keyword_hits: list[str], retrieved: bool) -> bool:
+  """应答类题目：检索命中且关键词覆盖达标（不代表生成回答正确）。"""
   if not keywords:
     return retrieved
   if not keyword_hits:
@@ -56,7 +56,7 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
       "retrieval_hit_rate": 0,
       "avg_confidence": 0,
       "high_confidence_rate": 0,
-      "answer_accuracy_rate": 0,
+      "keyword_coverage_rate": 0,
       "transfer_judgment_accuracy": 0,
       "transfer_accuracy_rate": 0,
       "confusion_matrix": {
@@ -79,7 +79,7 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
 
   behavior_correct = 0
   answer_expected = 0
-  answer_quality_ok = 0
+  keyword_coverage_ok_count = 0
   transfer_expected = 0
   transfer_correct = 0
   false_transfer = 0
@@ -89,7 +89,7 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
     "total": 0,
     "behavior_correct": 0,
     "answer_expected": 0,
-    "answer_quality_ok": 0,
+    "keyword_coverage_ok": 0,
     "transfer_expected": 0,
     "transfer_correct": 0,
     "false_transfer": 0,
@@ -124,15 +124,15 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
     all_text = " ".join(s["text"] for s in sources)
     keyword_hits = [kw for kw in keywords if kw in all_text] if keywords else []
     keyword_hit_rate = len(keyword_hits) / len(keywords) if keywords else None
-    answer_ok = _answer_quality_ok(keywords, keyword_hits, retrieved)
+    coverage_ok = _keyword_coverage_ok(keywords, keyword_hits, retrieved)
 
     if is_behavior_correct:
       behavior_correct += 1
 
     if expected_behavior == "answer":
       answer_expected += 1
-      if answer_ok:
-        answer_quality_ok += 1
+      if coverage_ok:
+        keyword_coverage_ok_count += 1
       if actual == "transfer_human":
         false_transfer += 1
     elif expected_behavior == "transfer_human":
@@ -148,8 +148,8 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
       agg["behavior_correct"] += 1
     if expected_behavior == "answer":
       agg["answer_expected"] += 1
-      if answer_ok:
-        agg["answer_quality_ok"] += 1
+      if coverage_ok:
+        agg["keyword_coverage_ok"] += 1
       if actual == "transfer_human":
         agg["false_transfer"] += 1
     elif expected_behavior == "transfer_human":
@@ -173,7 +173,7 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
       "top_source": sources[0]["title"] if sources else None,
       "keyword_hits": keyword_hits,
       "keyword_hit_rate": keyword_hit_rate,
-      "answer_quality_ok": answer_ok,
+      "keyword_coverage_ok": coverage_ok,
       "error": error,
     })
 
@@ -186,7 +186,7 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
       "category": cat,
       "total": agg["total"],
       "behavior_accuracy": round(agg["behavior_correct"] / agg["total"] * 100, 1) if agg["total"] else 0,
-      "answer_accuracy": round(agg["answer_quality_ok"] / ae * 100, 1) if ae else None,
+      "keyword_coverage": round(agg["keyword_coverage_ok"] / ae * 100, 1) if ae else None,
       "transfer_accuracy": round(agg["transfer_correct"] / te * 100, 1) if te else None,
       "false_transfer": agg["false_transfer"],
       "missed_transfer": agg["missed_transfer"],
@@ -197,7 +197,7 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
     "retrieval_hit_rate": round(hit_count / total * 100, 1),
     "avg_confidence": round(total_confidence / total, 2),
     "high_confidence_rate": round(high_conf_count / total * 100, 1),
-    "answer_accuracy_rate": round(answer_quality_ok / answer_expected * 100, 1) if answer_expected else 0,
+    "keyword_coverage_rate": round(keyword_coverage_ok_count / answer_expected * 100, 1) if answer_expected else 0,
     "transfer_judgment_accuracy": round(behavior_correct / total * 100, 1),
     "transfer_accuracy_rate": round(transfer_correct / transfer_expected * 100, 1) if transfer_expected else 0,
     "confusion_matrix": {

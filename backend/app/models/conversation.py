@@ -56,7 +56,11 @@ class Message(Base):
   # AI 建议相关字段（阶段B使用）
   confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True, comment="AI置信度")
   sources: Mapped[Optional[str]] = mapped_column(Text, nullable=True, comment="RAG来源JSON")
-  is_sent: Mapped[bool] = mapped_column(default=False, comment="AI建议是否已发送")
+  is_sent: Mapped[bool] = mapped_column(default=False, comment="历史兼容：消息是否已发送")
+  suggestion_status: Mapped[Optional[str]] = mapped_column(
+    String(20), nullable=True,
+    comment="AI建议状态：pending/accepted/edited_and_accepted/rejected/auto_sent/legacy_sent",
+  )
   created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
   # 关联

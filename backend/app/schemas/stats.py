@@ -16,6 +16,12 @@ class OverviewStats(BaseModel):
   indexed_docs: int = 0
   ai_suggestions: int = 0
   ai_accepted: int = 0
+  ai_original_accepted: int = 0
+  ai_edited_accepted: int = 0
+  ai_rejected: int = 0
+  ai_pending: int = 0
+  ai_auto_sent: int = 0
+  ai_processed: int = 0
   ai_accept_rate: float = 0.0
 
 

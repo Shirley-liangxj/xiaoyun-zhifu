@@ -44,6 +44,7 @@ class MessageOut(BaseModel):
   confidence: Optional[float] = None
   sources: Optional[str] = None
   is_sent: bool
+  suggestion_status: Optional[str] = None
   created_at: datetime
 
   class Config:

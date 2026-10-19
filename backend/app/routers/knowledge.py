@@ -1,4 +1,5 @@
 """知识库路由 - 文档 CRUD + RAG 检索"""
+from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from app.schemas.knowledge import (
   KnowledgeSearchResult,
 )
 from app.schemas.knowledge_gap import KnowledgeGapOut, KnowledgeGapResolve, KnowledgeGapResolveOut
+from app.services.knowledge_gap import resolution_outcome
 from app.services.rag import index_document, rebuild_company_index, remove_document_index, search_knowledge
 
 router = APIRouter(prefix="/api/knowledge", tags=["知识库"])
@@ -118,28 +120,62 @@ def resolve_gap(
   if not gap:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识缺口不存在")
 
-  doc_id = None
-  if body.create_doc:
-    title = gap.question.strip()[:100] or "知识缺口补充"
+  if not body.create_doc:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="必须写入知识文档并完成索引后才能标记已解决")
+
+  if gap.status == "resolved" and gap.knowledge_doc_id:
+    return KnowledgeGapResolveOut.model_validate(gap)
+
+  title = gap.question.strip()[:100] or "知识缺口补充"
+  content = f"问：{gap.question.strip()}\n\n答：{body.suggested_answer.strip()}"
+  doc = None
+  if gap.knowledge_doc_id:
+    doc = db.query(KnowledgeDoc).filter(
+      KnowledgeDoc.id == gap.knowledge_doc_id,
+      KnowledgeDoc.company_id == current_user.company_id,
+    ).first()
+  if doc:
+    doc.title = title
+    doc.content = content
+    doc.category = "缺口补充"
+  else:
     doc = KnowledgeDoc(
       company_id=current_user.company_id,
       title=title,
-      content=f"问：{gap.question.strip()}\n\n答：{body.suggested_answer.strip()}",
+      content=content,
       category="缺口补充",
     )
     db.add(doc)
     db.flush()
-    doc_id = doc.id
-    try:
-      index_document(db, doc)
-    except Exception:
-      pass
+    gap.knowledge_doc_id = doc.id
 
-  gap.status = "resolved"
   gap.suggested_answer = body.suggested_answer
+  gap.resolution_version = (gap.resolution_version or 0) + 1
+  gap.last_error = None
+  db.commit()
+
+  error_detail = ""
+  try:
+    indexed = bool(index_document(db, doc))
+  except Exception as exc:
+    indexed = False
+    error_detail = str(exc)
+  if not indexed:
+    gap.status = "indexing_failed"
+    gap.last_error = error_detail or "索引服务未返回成功"
+    gap.resolved_at = None
+    db.commit()
+    detail = f"知识文档 #{doc.id} 已保存，但索引失败，可在原缺口重试：{gap.last_error}"
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail)
+
+  outcome = resolution_outcome(indexed=True)
+  gap.status = outcome["status"]
+  gap.suggested_answer = body.suggested_answer
+  gap.last_error = None
+  gap.resolved_at = datetime.utcnow()
   db.commit()
   db.refresh(gap)
-  return KnowledgeGapResolveOut(**KnowledgeGapOut.model_validate(gap).model_dump(), knowledge_doc_id=doc_id)
+  return KnowledgeGapResolveOut.model_validate(gap)
 
 
 @router.post("/gaps/{gap_id}/ignore", summary="忽略知识缺口")

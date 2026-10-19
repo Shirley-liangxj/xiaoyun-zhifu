@@ -16,6 +16,7 @@ frontend/.env
 *.db
 *.sqlite3
 backend/data/
+/data/
 knowledge/
 
 # Node

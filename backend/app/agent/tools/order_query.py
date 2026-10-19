@@ -50,13 +50,16 @@ def query_order(
     fallback_used = True
 
   if not found:
+    need_order_id = not oid
     return {
       "ok": False,
       "source": "demo_mock",
       "needs_human": False,
+      "needs_clarification": True,
       "result": {
         "message": "未找到演示订单，请提供 DEMO-1001 等演示单号",
-        "need_order_id": not oid,
+        "need_order_id": need_order_id,
+        "missing_fields": ["order_id"] if need_order_id else [],
         "demo": True,
       },
       "summary": (

@@ -32,8 +32,8 @@ export default function Knowledge() {
   const loadGaps = async () => {
     setGapsLoading(true)
     try {
-      const res = await listGaps('pending')
-      setGaps(res.data)
+      const res = await listGaps()
+      setGaps((res.data || []).filter((g) => ['pending', 'indexing_failed'].includes(g.status)))
     } catch {
       setGaps([])
     } finally {
@@ -223,11 +223,16 @@ export default function Knowledge() {
                 <div>
                   <p className="text-sm text-gray-800">{g.question}</p>
                   <p className="text-xs text-gray-400 mt-1">
-                    出现 {g.hit_count} 次 · 最近置信 {(g.last_confidence * 100).toFixed(0)}%
+                    出现 {g.hit_count} 次 · 最近置信 {g.last_confidence == null ? '—' : `${(g.last_confidence * 100).toFixed(0)}%`}
                   </p>
+                  {g.status === 'indexing_failed' && (
+                    <p className="text-xs text-red-500 mt-1">上次索引失败：{g.last_error || '未知错误'}（可重试，复用文档 #{g.knowledge_doc_id}）</p>
+                  )}
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={() => handleResolveGap(g)} className="text-xs text-primary hover:underline">标记解决</button>
+                  <button onClick={() => handleResolveGap(g)} className="text-xs text-primary hover:underline">
+                    {g.status === 'indexing_failed' ? '重试索引' : '补充并解决'}
+                  </button>
                   <button onClick={() => handleIgnoreGap(g.id)} className="text-xs text-gray-400 hover:underline">忽略</button>
                 </div>
               </div>

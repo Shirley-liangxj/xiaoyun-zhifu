@@ -61,6 +61,8 @@ class PublicChatResponse(BaseModel):
   intent_label: str | None = None
   plan_steps: list[PlanStepOut] = []
   pending_confirmation: PendingConfirmationOut | None = None
+  review_status: str | None = None
+  terminal_state: str = "answered"
 
 
 class PublicMessageOut(BaseModel):
