@@ -103,22 +103,28 @@ def decide_review_action(
     payload = {}
   amount = payload.get("refund_amount", 0)
   order_id = payload.get("order_id", "未提供")
+  # 买家看到的是客服话术（role="agent" 买家端可见）；
+  # 「演示/审核单/未打款」等内部语义写进 meta.internal_note 只给坐席看
   if decision == "approved":
     content = (
-      f"【演示审核】订单 {order_id} 的退款建议（¥{amount}）已由人工审核通过。"
-      "本项目只记录审核结果，未执行真实退款。"
+      "好消息！您的退货申请已经通过审核啦，"
+      "退款会按您原来的支付方式退回，一般 1-3 个工作日内到账，请注意查收。"
+      "还有其他问题随时找我～"
     )
+    internal_note = f"审核通过：订单 {order_id} 退款 ¥{amount}（演示：仅记录结果，未执行真实打款）"
     conv.status = "active"
   elif decision == "rejected":
-    content = "【演示审核】退款建议未通过人工审核。"
+    content = "很抱歉，这次没能帮您通过退货审核。"
     if action.review_note:
-      content += f"原因：{action.review_note}。"
-    content += "本项目未执行真实退款。"
+      content += f"原因是：{action.review_note}。"
+    content += "如果您还有疑问，我很乐意再帮您看看。"
+    internal_note = f"审核驳回：订单 {order_id} 退款 ¥{amount}，原因：{action.review_note or '未填写'}"
     conv.status = "active"
   else:
-    content = "【演示审核】坐席需要您补充信息后再审核。"
+    content = "为了让售后同事帮您准确处理，还需要您补充一点信息。"
     if action.review_note:
-      content += f"请补充：{action.review_note}。"
+      content += f"麻烦补充一下：{action.review_note}。"
+    internal_note = f"需补充信息：订单 {order_id}，需补充：{action.review_note or '未填写'}"
     conv.status = "waiting_human"
 
   db.add(Message(
@@ -127,6 +133,7 @@ def decide_review_action(
     role="agent",
     content=content,
     is_sent=True,
+    meta=json.dumps({"internal_note": internal_note}, ensure_ascii=False),
   ))
   db.commit()
   db.refresh(action)

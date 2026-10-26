@@ -1,5 +1,8 @@
-"""买家端公开对话路由 - 无需登录"""
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+"""买家端公开对话路由 - 无需登录（带 IP 频控）"""
+import time
+from collections import defaultdict, deque
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.agent import confirm_pending_action, run_agent_turn
@@ -19,6 +22,28 @@ from app.services.public_chat import buyer_response, list_buyer_messages, transf
 from app.services.settings import get_or_create_settings
 
 router = APIRouter(prefix="/api/public", tags=["买家端"])
+
+# —— IP 频控：公开接口裸奔在公网上，没有这层任何人都能循环烧 LLM token ——
+# 每 IP 每分钟最多 10 次会话类请求；窗口滚动清理，无需外部依赖（单进程演示规模够用）。
+RATE_LIMIT = 10
+RATE_WINDOW = 60
+_rate_log: dict[str, deque] = defaultdict(deque)
+
+
+def _client_ip(request: Request) -> str:
+  # 优先取反代头；取不到就用直连地址
+  fwd = request.headers.get("x-forwarded-for", "")
+  return (fwd.split(",")[0].strip() if fwd else None) or (request.client.host if request.client else "unknown")
+
+
+def rate_limit(request: Request) -> None:
+  now = time.monotonic()
+  q = _rate_log[_client_ip(request)]
+  while q and now - q[0] > RATE_WINDOW:
+    q.popleft()
+  if len(q) >= RATE_LIMIT:
+    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求太频繁，请稍后再试")
+  q.append(now)
 
 
 def resolve_company_id(db: Session, company_id: int | None) -> int:
@@ -51,6 +76,7 @@ def public_chat(
   body: PublicChatRequest,
   company_id: int | None = Query(None, description="租户公司 ID"),
   db: Session = Depends(get_db),
+  _: None = Depends(rate_limit),
 ):
   cid = resolve_company_id(db, body.company_id if body.company_id is not None else company_id)
   try:
@@ -69,6 +95,7 @@ def public_confirm(
   body: PublicConfirmRequest,
   company_id: int | None = Query(None, description="租户公司 ID"),
   db: Session = Depends(get_db),
+  _: None = Depends(rate_limit),
 ):
   cid = resolve_company_id(db, body.company_id if body.company_id is not None else company_id)
   try:
@@ -85,6 +112,7 @@ def public_transfer(
   body: PublicTransferRequest,
   company_id: int | None = Query(None, description="租户公司 ID"),
   db: Session = Depends(get_db),
+  _: None = Depends(rate_limit),
 ):
   cid = resolve_company_id(db, body.company_id if body.company_id is not None else company_id)
   result = transfer_to_human(db, cid, body.conversation_id, body.customer_name)

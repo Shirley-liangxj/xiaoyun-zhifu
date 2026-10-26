@@ -217,8 +217,8 @@ class P0RegressionTests(unittest.TestCase):
     self.assertEqual(decided.review_note, "资料齐全，同意按试算建议处理")
     self.assertEqual(event.from_status, "waiting_review")
     self.assertEqual(event.to_status, "approved")
-    self.assertIn("审核通过", buyer_message.content)
-    self.assertIn("未执行真实退款", buyer_message.content)
+    self.assertIn("通过审核", buyer_message.content)
+    self.assertNotIn("演示", buyer_message.content); self.assertNotIn("本项目", buyer_message.content)
     self.assertEqual(conv.status, "active")
 
     with self.assertRaisesRegex(ValueError, "已完成审核"):
@@ -320,7 +320,7 @@ class P0RegressionTests(unittest.TestCase):
     self.assertEqual(conv_reject.status, "active")
     self.assertEqual(conv_more.status, "waiting_human")
     buyer_results = [row.content for row in db.query(Message).filter(Message.role == "agent").all()]
-    self.assertTrue(any("未通过人工审核" in content for content in buyer_results))
+    self.assertTrue(any("没能" in content or "未通过" in content for content in buyer_results))
     self.assertTrue(any("补充商品照片" in content for content in buyer_results))
     db.close()
 
@@ -398,8 +398,8 @@ class P0RegressionTests(unittest.TestCase):
       ])
       self.assertEqual(final_message.role, "agent")
       self.assertTrue(_visible_to_buyer(final_message))
-      self.assertIn("审核通过", final_message.content)
-      self.assertIn("未执行真实退款", final_message.content)
+      self.assertIn("通过审核", final_message.content)
+      self.assertNotIn("演示", final_message.content); self.assertNotIn("本项目", final_message.content)
       self.assertEqual(db.get(HumanReviewAction, review_id).status, "approved")
     finally:
       agent_loop.llm_service.complete = original_complete
