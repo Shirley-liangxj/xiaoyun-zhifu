@@ -112,3 +112,8 @@ assets/evidence/xhs_snap_*.txt
 
 # ---- 他人内容的翻译稿（版权风险）----
 docs/产品布楠-*.md
+
+# ---- 部署脚本与凭据（禁止入库）----
+scripts/deploy_*.py
+*.pem
+_xy_frontend.tar

@@ -10,6 +10,9 @@ export const createConversation = (data) => api.post('/api/conversations/', data
 /** 获取会话详情（含消息） */
 export const getConversation = (id) => api.get(`/api/conversations/${id}`)
 
+/** 客户信息卡（进线次数/消息量/工单/关联订单） */
+export const getCustomerProfile = (id) => api.get(`/api/conversations/${id}/profile`)
+
 /** 发送消息 */
 export const sendMessage = (conversationId, data) =>
   api.post(`/api/conversations/${conversationId}/messages`, data)

@@ -20,6 +20,12 @@ def ensure_sqlite_columns(engine: Engine) -> None:
       row[1]
       for row in conn.execute(text("PRAGMA table_info(messages)")).fetchall()
     }
+    if "meta" not in message_cols:
+      conn.execute(text("ALTER TABLE messages ADD COLUMN meta TEXT"))
+    if "is_internal" not in message_cols:
+      conn.execute(text(
+        "ALTER TABLE messages ADD COLUMN is_internal BOOLEAN DEFAULT 0 NOT NULL"
+      ))
     if "suggestion_status" not in message_cols:
       conn.execute(text("ALTER TABLE messages ADD COLUMN suggestion_status VARCHAR(20)"))
       # 旧数据无法可靠区分“买家自动回复”和“坐席采纳”，因此明确标为 legacy，

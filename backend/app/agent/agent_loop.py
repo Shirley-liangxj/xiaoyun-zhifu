@@ -15,6 +15,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.agent.intent_router import INTENT_LABELS, detect_high_risk, detect_unsupported_capability
+from app.agent.tools.order_query import extract_order_id
 from app.agent.tool_registry import list_tool_schemas, run_tool
 from app.agent.trajectory import append_trace
 from app.models import Conversation, HumanReviewAction, Message
@@ -36,18 +37,160 @@ MAX_TOOL_ROUNDS = 4
 
 AGENT_SYSTEM_PROMPT = """你是服饰电商售后客服助手，只能处理服饰售后相关问题（退换货、尺码、物流、质量、支付、售后政策），可通过工具查询政策、订单与退款试算。
 
-【最高优先级 · 先做这一步判断】用户这句话属于服饰售后范畴吗？
+【第一优先 · 先看懂这是一通连续对话】
+你现在看到的是一通多轮对话，不是孤立的一句话。必须先结合上文判断用户这句话在做什么：
+- 如果上一轮你在向用户索取信息（订单号、金额、购买天数、是否穿过等），用户这一条是补充答案 → 直接把补充的信息填进去，继续完成上一轮那件事，禁止把它当成一个全新问题重新开始。
+- 典型：上一轮你问「请提供订单号」，用户回「DEMO-1002」→ 这代表继续上一轮的退货/查询任务，不是单纯查物流。
+- 只有用户明确换了话题，才重新判断意图。
+
+【第二优先 · 是否属于服饰售后范畴】
 - 不属于（写代码/编程、天气、股票基金、时事政治、翻译、游戏、旅游美食推荐、其他平台业务，以及其他与服饰售后无关的请求）→ 必须调用 transfer_to_human（reason="超出售后范围"）。禁止自己作答，也禁止只用文字说「我帮不了您」来代替调用工具。
 - 属于 → 按下面规则调用工具。
 
 工具使用规则：
 1. 问政策/规则/怎么退/能不能退/发什么快递/用哪家快递 → 调用 search_policy，再依据返回资料回答；禁止编造政策。
 2. 问订单进度、快递到哪了、物流状态 → 调用 query_order；用户未提供单号时向用户追问，禁止编造单号或冒用他人订单。
-3. 用户要求退款/退货并涉及金额 → 可先 query_order（有单号时），再 calc_refund 试算；只能试算，禁止承诺已退款/已打款。
+3. 用户要求退款/退货：
+   - 没有单号 → 先向用户要单号（一句话问完，不要一次问多个问题）。
+   - 拿到单号 → 调用 query_order 取订单信息，再调用 calc_refund 试算。订单结果里已有金额（amount）和购买天数（days_since_purchase），直接用作 calc_refund 的入参，禁止再让用户重复报金额、天数。
+   - 订单里只有一个商品时，直接按这个商品试算，禁止反问「要退哪件商品」。
+   - 订单里也判断不了的（比如是否已穿着），可以追问一次；用户回答后直接试算。
+   - 只能试算，禁止承诺已退款/已打款。
 4. 投诉、纠纷、情绪激烈 → 调用 transfer_to_human。
 5. 仅当问题确实属于服饰售后范畴、且无需查阅资料时（问候、感谢、简单确认、客套话），才可直接简短回答。
 
-回复要求：亲切口语、简洁（一般不超过 150 字），不要暴露内部工具名。"""
+回复要求：亲切口语、简洁（一般不超过 150 字），不要暴露内部工具名，不要重复用户已经说过的信息。"""
+
+HISTORY_LIMIT = 12
+
+
+def _load_history(db: Session, conversation_id: int, limit: int = HISTORY_LIMIT) -> list[Message]:
+  """取当前会话最近若干条可见消息，作为模型的多轮上下文。"""
+  rows = (
+    db.query(Message)
+    .filter(Message.conversation_id == conversation_id, Message.is_internal.is_(False))
+    .order_by(Message.id.desc())
+    .limit(limit)
+    .all()
+  )
+  rows.reverse()
+  return rows
+
+
+def _history_to_llm(rows: list[Message]) -> list[dict]:
+  """把历史消息转成 OpenAI 兼容的对话格式。"""
+  out: list[dict] = []
+  for m in rows:
+    content = (m.content or "").strip()
+    if not content:
+      continue
+    if m.role == "customer":
+      out.append({"role": "user", "content": content})
+    elif m.role == "agent":
+      out.append({"role": "assistant", "content": f"（人工客服）{content}"})
+    elif m.role == "ai_suggestion" and m.is_sent:
+      out.append({"role": "assistant", "content": content})
+  return out
+
+
+def _carry_over_hint(rows: list[Message], message: str) -> str:
+  """短回复承接上一轮追问：避免「用户只回了个单号」被当成新意图。"""
+  text = (message or "").strip()
+  last_ai = ""
+  for m in reversed(rows):
+    if m.role in ("ai_suggestion", "agent") and (m.content or "").strip():
+      last_ai = m.content.strip()
+      break
+  if not last_ai:
+    return ""
+
+  order_id = extract_order_id(text)
+  compact = len(text) <= 24
+  asked_for_order = ("订单号" in last_ai) or ("单号" in last_ai)
+
+  recent_user_text = " ".join(
+    (m.content or "") for m in rows[-6:] if m.role == "customer"
+  )
+  wants_refund = any(
+    w in recent_user_text or w in text for w in ("退款", "退货", "退钱", "退掉", "申请退")
+  )
+
+  if order_id and compact and asked_for_order and wants_refund:
+    return (
+      f"\n\n（对话上下文提示：用户此前明确要求退款/退货，这一句只是在补充订单号 {order_id}。"
+      "请不要反问「退哪件商品」「多少钱」「买了几天」——直接调用 query_order 查询该订单，"
+      "用订单返回的金额与购买天数立即调用 calc_refund 试算退款金额。）"
+    )
+  if order_id and compact and asked_for_order:
+    return (
+      f"\n\n（对话上下文提示：上一轮客服正在向用户索取订单号，用户这条只是在补充订单号 {order_id}。"
+      "请承接上一轮的任务继续处理，不要当成新的查询问题。）"
+    )
+  if len(text) <= 12 and last_ai.rstrip().endswith(("？", "?")):
+    return (
+      "\n\n（对话上下文提示：上一轮客服在向用户追问，用户这条是在回答追问。"
+      "请承接上一轮任务继续处理，不要重新判断意图。）"
+    )
+  return ""
+
+
+def _clear_pending_meta(db: Session, conversation_id: int, confirmation_id: str) -> None:
+  """确认单已处理：清掉该消息上的待确认按钮，避免重复点击。"""
+  rows = (
+    db.query(Message)
+    .filter(Message.conversation_id == conversation_id, Message.meta.isnot(None))
+    .all()
+  )
+  for m in rows:
+    meta = parse_meta_safe(m.meta)
+    pc = meta.get("pending_confirmation")
+    if isinstance(pc, dict) and pc.get("id") == confirmation_id:
+      meta["pending_confirmation"] = None
+      m.meta = json.dumps(meta, ensure_ascii=False)
+  db.commit()
+
+
+def parse_meta_safe(raw):
+  if not raw:
+    return {}
+  try:
+    data = json.loads(raw)
+    return data if isinstance(data, dict) else {}
+  except Exception:
+    return {}
+
+
+def _last_order_id(tools_log: list[dict]) -> str | None:
+  """从本轮工具结果里取查询到的订单号，用于试算补参。"""
+  for t in reversed(tools_log):
+    if t.get("name") != "query_order":
+      continue
+    oid = ((t.get("output") or {}).get("result") or {}).get("order_id")
+    if oid:
+      return str(oid)
+  return None
+
+
+def _order_card(tools_log: list[dict]) -> dict | None:
+  """把订单查询结果转成买家端可渲染的结构化卡片。"""
+  for t in tools_log:
+    if t.get("name") != "query_order":
+      continue
+    r = (t.get("output") or {}).get("result") or {}
+    if not r.get("order_id"):
+      continue
+    return {
+      "type": "order",
+      "order_id": r.get("order_id"),
+      "product": r.get("product"),
+      "status": r.get("status"),
+      "express": r.get("express"),
+      "tracking_no": r.get("tracking_no"),
+      "logistics": r.get("logistics"),
+      "amount": r.get("amount"),
+      "demo": bool(r.get("demo")),
+    }
+  return None
 
 
 def _base_result(
@@ -62,6 +205,7 @@ def _base_result(
   plan_steps: list,
   pending_confirmation: dict | None,
   human_mode: bool,
+  card: dict | None = None,
 ) -> dict:
   if pending_confirmation:
     terminal_state = "pending_buyer"
@@ -84,6 +228,7 @@ def _base_result(
     "plan_steps": plan_steps,
     "pending_confirmation": pending_confirmation,
     "terminal_state": terminal_state,
+    "card": card,
   }
 
 
@@ -93,6 +238,7 @@ def _save_ai_message(
   content: str,
   confidence: float,
   sources_data: list,
+  meta: dict | None = None,
 ) -> Message:
   ai_msg = Message(
     conversation_id=conv.id,
@@ -102,11 +248,33 @@ def _save_ai_message(
     sources=json.dumps(sources_data, ensure_ascii=False),
     is_sent=True,
     suggestion_status="auto_sent",
+    meta=json.dumps(meta, ensure_ascii=False) if meta else None,
   )
   db.add(ai_msg)
   db.commit()
   db.refresh(ai_msg)
   return ai_msg
+
+
+def _attach_meta(
+  db: Session,
+  ai_msg: Message | None,
+  *,
+  intent_label: str | None,
+  plan_steps: list,
+  pending_confirmation: dict | None,
+  card: dict | None,
+) -> None:
+  """把执行计划/待确认动作/业务卡片落到消息上，刷新或轮询后不会丢失。"""
+  if ai_msg is None:
+    return
+  ai_msg.meta = json.dumps({
+    "intent_label": intent_label,
+    "plan_steps": plan_steps or [],
+    "pending_confirmation": pending_confirmation,
+    "card": card,
+  }, ensure_ascii=False)
+  db.commit()
 
 
 def _parse_tool_args(raw: str | dict | None) -> dict:
@@ -246,6 +414,9 @@ def run_agent_turn(
   threshold = company_settings.confidence_threshold
   conv = get_or_create_conversation(db, company_id, conversation_id, customer_name)
 
+  # 先取历史（不含本条），作为多轮上下文
+  history = _load_history(db, conv.id)
+
   db.add(Message(conversation_id=conv.id, role="customer", content=message, is_sent=True))
   db.commit()
 
@@ -299,6 +470,13 @@ def run_agent_turn(
       detail="高危关键词前置拦截，已进入待人工队列",
     )
     intent = _intent_from_tools([], high_risk=True)
+    _attach_meta(
+      db, ai_msg,
+      intent_label=intent.get("label"),
+      plan_steps=plan_steps,
+      pending_confirmation=None,
+      card=None,
+    )
     db.commit()
     append_trace({
       "conversation_id": conv.id,
@@ -346,6 +524,13 @@ def run_agent_turn(
       "confidence": 1.0,
       "source": "capability_guard",
     }
+    _attach_meta(
+      db, ai_msg,
+      intent_label=intent.get("label"),
+      plan_steps=plan_steps,
+      pending_confirmation=None,
+      card=None,
+    )
     db.commit()
     append_trace({
       "conversation_id": conv.id,
@@ -371,12 +556,11 @@ def run_agent_turn(
       human_mode=_is_human_mode(db, conv),
     )
 
-  # ④ function calling 主循环
+  # ④ function calling 主循环（带多轮上下文）
   tools_schema = list_tool_schemas()
-  messages: list[dict] = [
-    {"role": "system", "content": AGENT_SYSTEM_PROMPT},
-    {"role": "user", "content": message},
-  ]
+  messages: list[dict] = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
+  messages.extend(_history_to_llm(history))
+  messages.append({"role": "user", "content": message + _carry_over_hint(history, message)})
   tools_log: list[dict] = []
   tools_called: list[str] = []
   plan_steps: list[dict] = []
@@ -437,6 +621,22 @@ def run_agent_turn(
         )
         tools_log.append({"name": name, "args": args, "output": out})
         tools_called.append(name)
+
+        # 参数补全重试：模型没把单号传给试算时，用本轮查到的订单号补齐再算一次
+        if name == "calc_refund" and out.get("needs_clarification"):
+          oid = str(args.get("order_id") or "").strip() or extract_order_id(message) or _last_order_id(tools_log)
+          if oid:
+            retry = run_tool(
+              "calc_refund", message,
+              company_id=company_id,
+              fallback_to_first=False,
+              order_id=oid,
+              amount=args.get("amount"),
+              days_since_purchase=args.get("days_since_purchase"),
+            )
+            if retry.get("ok"):
+              out = retry
+              tools_log[-1]["output"] = retry
 
         demo = (out.get("source") or "").startswith("demo") or bool(
           (out.get("result") or {}).get("demo")
@@ -591,6 +791,15 @@ def run_agent_turn(
   if interrupt_reason:
     intent["interrupt"] = interrupt_reason
 
+  card = _order_card(tools_log)
+  _attach_meta(
+    db, ai_msg,
+    intent_label=intent.get("label"),
+    plan_steps=plan_steps,
+    pending_confirmation=pending,
+    card=card,
+  )
+
   db.commit()
   append_trace({
     "conversation_id": conv.id,
@@ -626,6 +835,7 @@ def run_agent_turn(
     plan_steps=plan_steps,
     pending_confirmation=pending,
     human_mode=_is_human_mode(db, conv),
+    card=card,
   )
 
 
@@ -675,6 +885,16 @@ def confirm_pending_action(
     "已转入人工队列，坐席将继续处理。系统未自动打款。"
   )
   ai_msg = _save_ai_message(db, conv, answer, 0.9, [])
+  _attach_meta(
+    db, ai_msg,
+    intent_label="操作类",
+    plan_steps=[
+      {"id": "hitl", "title": "买家确认", "status": "done", "detail": "买家已确认，退款建议已提交坐席审核", "demo": True}
+    ],
+    pending_confirmation=None,
+    card=None,
+  )
+  _clear_pending_meta(db, conv.id, confirmation_id)
   append_trace({
     "conversation_id": conv.id,
     "company_id": company_id,

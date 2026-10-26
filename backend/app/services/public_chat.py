@@ -26,6 +26,8 @@ TRANSFER_NOTE = "已为您转接人工客服，坐席正在接入，请稍候。
 
 
 def _visible_to_buyer(msg: Message) -> bool:
+  if getattr(msg, "is_internal", False):
+    return False
   if msg.role in ("customer", "agent"):
     return True
   if msg.role == "ai_suggestion" and msg.is_sent:
@@ -70,6 +72,17 @@ def _is_human_mode(db: Session, conv: Conversation) -> bool:
   return has_agent is not None
 
 
+def parse_meta(raw: str | None) -> dict:
+  """消息结构化元数据：执行计划 / 待确认动作 / 业务卡片"""
+  if not raw:
+    return {}
+  try:
+    data = json.loads(raw)
+    return data if isinstance(data, dict) else {}
+  except Exception:
+    return {}
+
+
 def serialize_message(msg: Message) -> dict:
   sources = []
   if msg.sources:
@@ -77,6 +90,7 @@ def serialize_message(msg: Message) -> dict:
       sources = json.loads(msg.sources)
     except Exception:
       sources = []
+  meta = parse_meta(getattr(msg, "meta", None))
   display_role = "assistant"
   if msg.role == "customer":
     display_role = "user"
@@ -91,6 +105,12 @@ def serialize_message(msg: Message) -> dict:
     "confidence": msg.confidence,
     "sources": sources,
     "created_at": msg.created_at.isoformat() if msg.created_at else None,
+    # —— 结构化元数据（刷新/轮询后依然保留，不会「闪一下就没」）——
+    "intent_label": meta.get("intent_label"),
+    "plan_steps": meta.get("plan_steps") or [],
+    "pending_confirmation": meta.get("pending_confirmation"),
+    "card": meta.get("card"),
+    "is_internal": bool(getattr(msg, "is_internal", False)),
   }
 
 

@@ -2,6 +2,7 @@
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import case, func
@@ -9,12 +10,14 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Conversation, HumanReviewAction, HumanReviewEvent, Message, User
+from app.models import Conversation, HumanReviewAction, HumanReviewEvent, Message, Ticket, User
 from app.schemas.conversation import (
   AcceptSuggestionRequest,
   ConversationCreate,
   ConversationDetail,
   ConversationOut,
+  CustomerOrderOut,
+  CustomerProfileOut,
   MessageCreate,
   MessageOut,
 )
@@ -26,6 +29,8 @@ from app.services.settings import get_or_create_settings
 
 router = APIRouter(prefix="/api/conversations", tags=["会话"])
 logger = logging.getLogger(__name__)
+
+ORDERS_PATH = Path(__file__).resolve().parents[1] / "data" / "orders_demo.json"
 
 
 def _review_out(db: Session, action: HumanReviewAction) -> HumanReviewOut:
@@ -160,6 +165,73 @@ def get_conversation(
   )
 
 
+@router.get("/{conversation_id}/profile", response_model=CustomerProfileOut, summary="客户信息卡")
+def customer_profile(
+  conversation_id: int,
+  current_user: User = Depends(get_current_user),
+  db: Session = Depends(get_db),
+):
+  """坐席端客户信息卡：进线次数、消息量、工单、关联订单。"""
+  conv = db.query(Conversation).filter(
+    Conversation.id == conversation_id,
+    Conversation.company_id == current_user.company_id,
+  ).first()
+  if not conv:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+
+  same_customer = db.query(func.count(Conversation.id)).filter(
+    Conversation.company_id == current_user.company_id,
+    Conversation.customer_name == conv.customer_name,
+  ).scalar() or 0
+
+  total_messages = db.query(func.count(Message.id)).filter(
+    Message.conversation_id == conv.id,
+    Message.role.in_(["customer", "agent"]),
+  ).scalar() or 0
+
+  open_tickets = db.query(func.count(Ticket.id)).filter(
+    Ticket.company_id == current_user.company_id,
+    Ticket.conversation_id == conv.id,
+    Ticket.status != "closed",
+  ).scalar() or 0
+
+  orders: list[CustomerOrderOut] = []
+  try:
+    with open(ORDERS_PATH, encoding="utf-8") as f:
+      raw = json.load(f)
+    for o in (raw if isinstance(raw, list) else raw.get("orders", [])):
+      hint = (o.get("customer_hint") or "").strip()
+      name = conv.customer_name or ""
+      if hint and (hint in name or name in hint):
+        orders.append(CustomerOrderOut(
+          order_id=o.get("order_id", ""),
+          product=o.get("product", ""),
+          status=o.get("status", ""),
+          amount=o.get("amount"),
+          express=o.get("express"),
+          tracking_no=o.get("tracking_no"),
+          days_since_purchase=o.get("days_since_purchase"),
+        ))
+  except Exception as e:
+    logger.warning("load demo orders failed: %s", e)
+
+  last_msg_at = db.query(func.max(Message.created_at)).filter(
+    Message.conversation_id == conv.id
+  ).scalar()
+
+  return CustomerProfileOut(
+    customer_name=conv.customer_name,
+    channel=conv.channel,
+    status=conv.status,
+    first_contact_at=conv.created_at,
+    last_active_at=last_msg_at or conv.created_at,
+    total_conversations=same_customer,
+    total_messages=total_messages,
+    open_tickets=open_tickets,
+    orders=orders,
+  )
+
+
 @router.post("/{conversation_id}/messages", response_model=MessageOut, summary="发送消息")
 def send_message(
   conversation_id: int,
@@ -184,6 +256,7 @@ def send_message(
     role=body.role,
     content=body.content,
     is_sent=True,
+    is_internal=bool(body.is_internal and body.role == "agent"),
   )
   if body.role == "agent" and conv.status == "waiting_human":
     conv.status = "active"

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { getPublicConfig, getPublicConversation, publicChat, transferToHuman, confirmPublicAction } from '../api/public'
 
 const STORAGE_KEY = 'xiaoyun_buyer_session'
+const BOTTOM_THRESHOLD = 80
 
 function roleMeta(role) {
   if (role === 'user') return { align: 'end', bubble: 'bg-primary text-white rounded-br-md', label: '' }
@@ -24,8 +25,8 @@ function PlanCard({ steps, intentLabel }) {
         执行计划{intentLabel ? ` · ${intentLabel}` : ''}
       </p>
       <ul className="space-y-1.5">
-        {steps.map((s) => (
-          <li key={s.id} className={`text-[11px] px-2 py-1.5 rounded-lg border ${stepStatusClass(s.status)}`}>
+        {steps.map((s, i) => (
+          <li key={`${s.id}-${i}`} className={`text-[11px] px-2 py-1.5 rounded-lg border ${stepStatusClass(s.status)}`}>
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium">{s.title}</span>
               <span className="opacity-70 shrink-0">
@@ -39,6 +40,45 @@ function PlanCard({ steps, intentLabel }) {
       </ul>
     </div>
   )
+}
+
+function OrderCard({ card }) {
+  if (!card || card.type !== 'order') return null
+  return (
+    <div className="mt-2 rounded-xl border border-gray-200 bg-white p-2.5 text-left">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-gray-700">订单 {card.order_id}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 shrink-0">
+          {card.status}
+        </span>
+      </div>
+      <p className="text-[11px] text-gray-600 mt-1">{card.product}</p>
+      {(card.express || card.tracking_no) && (
+        <p className="text-[11px] text-gray-500 mt-1">
+          {card.express} {card.tracking_no}
+        </p>
+      )}
+      {card.logistics && <p className="text-[11px] text-gray-500">{card.logistics}</p>}
+      {card.demo && <p className="text-[10px] text-amber-600 mt-1">演示数据，非真实物流</p>}
+    </div>
+  )
+}
+
+function fmtClock(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+function dayLabel(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const today = new Date()
+  const sameDay = d.toDateString() === today.toDateString()
+  if (sameDay) return '今天'
+  return `${d.getMonth() + 1}月${d.getDate()}日`
 }
 
 function storageKey(companyId) {
@@ -69,6 +109,7 @@ export default function Chat() {
   const companyIdParam = searchParams.get('company_id')
   const companyId = companyIdParam ? parseInt(companyIdParam, 10) : null
   const resolvedCompanyId = Number.isNaN(companyId) ? null : companyId
+  const forceNew = searchParams.get('new') === '1'
 
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -82,7 +123,33 @@ export default function Chat() {
   const [nicknameInput, setNicknameInput] = useState('')
   const [ready, setReady] = useState(false)
   const [showFaq, setShowFaq] = useState(false)
-  const endRef = useRef(null)
+  const [previousSession, setPreviousSession] = useState(null)
+  const [showNewChat, setShowNewChat] = useState(false)
+  const [newNickname, setNewNickname] = useState('')
+
+  const [showJump, setShowJump] = useState(false)
+  const listRef = useRef(null)
+  const atBottomRef = useRef(true)
+  const lastCountRef = useRef(0)
+  const loadingRef = useRef(false)
+
+  useEffect(() => { loadingRef.current = loading }, [loading])
+
+  const scrollToBottom = (smooth = true) => {
+    const el = listRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+    atBottomRef.current = true
+    setShowJump(false)
+  }
+
+  const handleScroll = () => {
+    const el = listRef.current
+    if (!el) return
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_THRESHOLD
+    atBottomRef.current = near
+    if (near) setShowJump(false)
+  }
 
   useEffect(() => {
     getPublicConfig(resolvedCompanyId)
@@ -94,26 +161,54 @@ export default function Chat() {
       .catch(() => {})
 
     const saved = loadSession(resolvedCompanyId)
-    if (saved?.nickname) {
-      setNickname(saved.nickname)
-      setNicknameInput(saved.nickname)
-      if (saved.conversationId) setConversationId(saved.conversationId)
-      setReady(true)
+    if (!saved?.nickname) return
+    setNickname(saved.nickname)
+    setNicknameInput(saved.nickname)
+    setNewNickname(saved.nickname)
+    setReady(true)
+    if (saved.conversationId) {
+      if (forceNew) {
+        // 从坐席台进来 = 新一次咨询；旧会话留一个「继续上次对话」入口
+        setPreviousSession(saved.conversationId)
+      } else {
+        setConversationId(saved.conversationId)
+      }
     }
-  }, [resolvedCompanyId])
+  }, [resolvedCompanyId, forceNew])
 
   useEffect(() => {
     if (!ready) return
-    setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
+    // 只更新欢迎语，不冲掉已经拉回来的历史消息
+    setMessages((prev) => {
+      const body = prev.filter((m) => !m.isWelcome)
+      return [{ role: 'assistant', content: welcome, isWelcome: true }, ...body]
+    })
+    lastCountRef.current = 1
+    requestAnimationFrame(() => scrollToBottom(false))
   }, [welcome, ready])
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  // 智能滚动：只在「本来就在底部」或「自己刚发消息」时跟到底，绝不打断上翻
+  useEffect(() => {
+    if (messages.length === lastCountRef.current) return
+    const grew = messages.length > lastCountRef.current
+    lastCountRef.current = messages.length
+    if (!grew) return
+    const last = messages[messages.length - 1]
+    if (atBottomRef.current || last?.role === 'user' || loadingRef.current) {
+      requestAnimationFrame(() => scrollToBottom(true))
+    } else {
+      setShowJump(true)
+    }
+  }, [messages])
 
   useEffect(() => {
     if (!conversationId || !ready) return undefined
+    let cancelled = false
     const timer = setInterval(async () => {
+      if (loadingRef.current) return
       try {
         const res = await getPublicConversation(conversationId, activeCompanyId)
+        if (cancelled) return
         const data = res.data
         setHumanMode(!!data.human_mode)
         const remote = (data.messages || []).map((m) => ({
@@ -121,23 +216,25 @@ export default function Chat() {
           role: m.role,
           content: m.content,
           sources: m.sources,
-          need_human: false,
+          created_at: m.created_at,
+          intent_label: m.intent_label,
+          plan_steps: m.plan_steps || [],
+          pending_confirmation: m.pending_confirmation || null,
+          card: m.card || null,
         }))
         if (remote.length === 0) return
         setMessages((prev) => {
           const welcomeMsg = prev.find((m) => m.isWelcome)
-          const prevMap = new Map(prev.filter((m) => m.id).map((m) => [m.id, m]))
-          const merged = remote.map((m) => ({
-            ...m,
-            need_human: prevMap.get(m.id)?.need_human ?? false,
-          }))
-          return welcomeMsg ? [welcomeMsg, ...merged] : merged
+          const prevBody = prev.filter((m) => !m.isWelcome)
+          // 内容没变化就不更新，避免每 2.5 秒整表重渲染（也是「自动弹回最新」的另一半原因）
+          if (JSON.stringify(prevBody) === JSON.stringify(remote)) return prev
+          return welcomeMsg ? [welcomeMsg, ...remote] : remote
         })
       } catch {
         /* ignore */
       }
     }, 2500)
-    return () => clearInterval(timer)
+    return () => { cancelled = true; clearInterval(timer) }
   }, [conversationId, ready, activeCompanyId])
 
   const startWithNickname = (e) => {
@@ -145,19 +242,37 @@ export default function Chat() {
     const name = nicknameInput.trim()
     if (!name) return
     setNickname(name)
+    setNewNickname(name)
     saveSession(activeCompanyId, { nickname: name, conversationId: null })
     setConversationId(null)
     setHumanMode(false)
     setReady(true)
     setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
+    lastCountRef.current = 1
   }
 
-  const startNewConsult = () => {
-    saveSession(activeCompanyId, { nickname, conversationId: null })
+  const resetToNewChat = (name) => {
+    const finalName = (name || nickname || '').trim()
+    if (!finalName) return
+    setNickname(finalName)
+    setNicknameInput(finalName)
+    setNewNickname(finalName)
+    saveSession(activeCompanyId, { nickname: finalName, conversationId: null })
     setConversationId(null)
     setHumanMode(false)
-    setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
     setShowFaq(false)
+    setShowNewChat(false)
+    setPreviousSession(null)
+    setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
+    lastCountRef.current = 1
+    requestAnimationFrame(() => scrollToBottom(false))
+  }
+
+  const resumePrevious = () => {
+    if (!previousSession) return
+    setConversationId(previousSession)
+    setPreviousSession(null)
+    saveSession(activeCompanyId, { nickname, conversationId: previousSession })
   }
 
   const appendAssistant = (data) => {
@@ -174,6 +289,8 @@ export default function Chat() {
       intent_label: data.intent_label,
       plan_steps: data.plan_steps || [],
       pending_confirmation: data.pending_confirmation || null,
+      card: data.card || null,
+      created_at: new Date().toISOString(),
     }])
   }
 
@@ -200,7 +317,11 @@ export default function Chat() {
     const userMsg = input.trim()
     setInput('')
     setShowFaq(false)
-    setMessages((prev) => [...prev, { role: 'user', content: userMsg }])
+    setMessages((prev) => [...prev, {
+      role: 'user',
+      content: userMsg,
+      created_at: new Date().toISOString(),
+    }])
     setLoading(true)
     try {
       const res = await publicChat(userMsg, conversationId, nickname, activeCompanyId)
@@ -268,7 +389,7 @@ export default function Chat() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-[390px] h-[720px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 relative">
-        <div className="bg-primary px-4 py-3 flex items-center gap-3">
+        <div className="bg-primary px-4 py-3 flex items-center gap-3 shrink-0">
           <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white text-sm">云</div>
           <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-semibold">{shopName}</p>
@@ -276,77 +397,112 @@ export default function Chat() {
               {humanMode ? '人工客服处理中' : 'AI 智能客服 · 在线'} · {nickname}
             </p>
           </div>
-          <button type="button" onClick={startNewConsult}
+          <button type="button" onClick={() => { setNewNickname(nickname); setShowNewChat(true) }}
             className="text-xs text-white/90 border border-white/30 px-2 py-1 rounded-full hover:bg-white/10">
             新咨询
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-          {messages.map((msg, i) => {
-            const meta = roleMeta(msg.role)
-            return (
-              <div key={msg.id ?? i} className={`flex ${meta.align === 'end' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${meta.bubble}`}>
-                  {meta.label && !msg.isWelcome && (
-                    <p className="text-xs opacity-50 mb-1">{meta.label}</p>
-                  )}
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+        {previousSession && !conversationId && (
+          <div className="shrink-0 px-4 py-2 bg-amber-50 border-b border-amber-100 flex items-center justify-between gap-2">
+            <p className="text-[11px] text-amber-700">这是新一次咨询</p>
+            <button type="button" onClick={resumePrevious} className="text-[11px] text-primary hover:underline shrink-0">
+              继续上次对话 →
+            </button>
+          </div>
+        )}
 
-                  {msg.plan_steps?.length > 0 && (
-                    <PlanCard steps={msg.plan_steps} intentLabel={msg.intent_label} />
+        <div className="relative flex-1 min-h-0">
+          <div ref={listRef} onScroll={handleScroll} className="absolute inset-0 overflow-y-auto p-4 space-y-3 bg-gray-50">
+            {messages.map((msg, i) => {
+              const meta = roleMeta(msg.role)
+              const prev = messages[i - 1]
+              const showDay = msg.created_at && (!prev?.created_at || dayLabel(msg.created_at) !== dayLabel(prev.created_at))
+              return (
+                <div key={`${msg.id ?? 'tmp'}-${i}`}>
+                  {showDay && msg.created_at && (
+                    <p className="text-center text-[10px] text-gray-400 my-1">{dayLabel(msg.created_at)}</p>
                   )}
+                  <div className={`flex ${meta.align === 'end' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${meta.bubble}`}>
+                      {meta.label && !msg.isWelcome && (
+                        <p className="text-xs opacity-50 mb-1">{meta.label}</p>
+                      )}
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
 
-                  {msg.pending_confirmation && (
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => handleConfirm(msg.pending_confirmation.id)}
-                      className="mt-2 w-full text-xs px-2 py-2 bg-red-50 border border-red-300 text-red-700 rounded-lg hover:bg-red-100 disabled:opacity-60"
-                    >
-                      确认提交给人工（不会自动打款）
-                    </button>
-                  )}
+                      <OrderCard card={msg.card} />
 
-                  {msg.need_human && humanMode && !msg.pending_confirmation && (
-                    <div className="mt-2 px-2 py-1.5 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
-                      已进入人工队列，坐席回复后会显示在这里
+                      {msg.plan_steps?.length > 0 && (
+                        <PlanCard steps={msg.plan_steps} intentLabel={msg.intent_label} />
+                      )}
+
+                      {msg.created_at && (
+                        <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-white/60 text-right' : 'text-gray-300'}`}>
+                          {fmtClock(msg.created_at)}
+                        </p>
+                      )}
+
+                      {msg.pending_confirmation && (
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() => handleConfirm(msg.pending_confirmation.id)}
+                          className="mt-2 w-full text-xs px-2 py-2 bg-red-50 border border-red-300 text-red-700 rounded-lg hover:bg-red-100 disabled:opacity-60"
+                        >
+                          确认提交给人工（不会自动打款）
+                        </button>
+                      )}
+
+                      {msg.need_human && humanMode && !msg.pending_confirmation && (
+                        <div className="mt-2 px-2 py-1.5 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
+                          已进入人工队列，坐席回复后会显示在这里
+                        </div>
+                      )}
+
+                      {msg.sources?.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-100">
+                          <p className="text-xs text-gray-400 mb-1">参考来源</p>
+                          {msg.sources.map((s, j) => (
+                            <span key={j} className="inline-block text-xs bg-primary-light text-primary-dark px-1.5 py-0.5 rounded mr-1 mb-1">
+                              {s.title}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {msg.need_human && !humanMode && !msg.pending_confirmation && msg.role === 'assistant' && !msg.isWelcome && (
+                        <button
+                          type="button"
+                          onClick={handleTransfer}
+                          disabled={loading}
+                          className="mt-2 block w-full text-left text-xs px-2 py-1.5 bg-orange-50 border border-orange-200 rounded-lg text-orange-700 hover:bg-orange-100 disabled:opacity-60"
+                        >
+                          这个回答不满意？转人工客服
+                        </button>
+                      )}
                     </div>
-                  )}
-
-                  {msg.sources?.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                      <p className="text-xs text-gray-400 mb-1">参考来源</p>
-                      {msg.sources.map((s, j) => (
-                        <span key={j} className="inline-block text-xs bg-primary-light text-primary-dark px-1.5 py-0.5 rounded mr-1 mb-1">
-                          {s.title}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {msg.need_human && !humanMode && !msg.pending_confirmation && msg.role === 'assistant' && !msg.isWelcome && (
-                    <button
-                      type="button"
-                      onClick={handleTransfer}
-                      disabled={loading}
-                      className="mt-2 block w-full text-left text-xs px-2 py-1.5 bg-orange-50 border border-orange-200 rounded-lg text-orange-700 hover:bg-orange-100 disabled:opacity-60"
-                    >
-                      这个回答不满意？转人工客服
-                    </button>
-                  )}
+                  </div>
+                </div>
+              )
+            })}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-white rounded-2xl px-4 py-3 shadow-sm text-sm text-gray-400">
+                  {humanMode ? '消息已送达坐席...' : '小云正在思考...'}
                 </div>
               </div>
-            )
-          })}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="bg-white rounded-2xl px-4 py-3 shadow-sm text-sm text-gray-400">
-                {humanMode ? '消息已送达坐席...' : '小云正在思考...'}
-              </div>
-            </div>
+            )}
+          </div>
+
+          {showJump && (
+            <button
+              type="button"
+              onClick={() => scrollToBottom(true)}
+              className="absolute left-1/2 -translate-x-1/2 bottom-3 px-3 py-1.5 bg-primary text-white text-xs rounded-full shadow-lg"
+            >
+              有新消息 ↓
+            </button>
           )}
-          <div ref={endRef} />
         </div>
 
         {showFaq && (
@@ -366,7 +522,7 @@ export default function Chat() {
           </div>
         )}
 
-        <form onSubmit={handleSend} className="p-3 border-t border-gray-100 flex gap-2 bg-white items-center">
+        <form onSubmit={handleSend} className="p-3 border-t border-gray-100 flex gap-2 bg-white items-center shrink-0">
           <button type="button" onClick={() => setShowFaq((v) => !v)}
             className="shrink-0 text-xs px-2 py-2 border border-gray-200 text-gray-600 rounded-full hover:bg-gray-50"
             title="常见问题">
@@ -382,13 +538,39 @@ export default function Chat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={humanMode ? '向人工客服描述问题...' : '输入您的问题...'}
-            className="flex-1 px-4 py-2.5 bg-gray-50 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="flex-1 min-w-0 px-4 py-2.5 bg-gray-50 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <button type="submit" disabled={loading}
-            className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center hover:bg-primary-dark disabled:opacity-60">
+            className="shrink-0 w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center hover:bg-primary-dark disabled:opacity-60">
             ↑
           </button>
         </form>
+
+        {showNewChat && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-5 z-20">
+            <div className="w-full bg-white rounded-2xl p-5 shadow-xl">
+              <h3 className="text-sm font-semibold text-gray-800 mb-1">开始新咨询</h3>
+              <p className="text-xs text-gray-400 mb-3">可换一个昵称，模拟另一位买家进线</p>
+              <input
+                value={newNickname}
+                onChange={(e) => setNewNickname(e.target.value)}
+                maxLength={20}
+                placeholder="如：李先生"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary mb-3"
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowNewChat(false)}
+                  className="flex-1 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+                  取消
+                </button>
+                <button type="button" onClick={() => resetToNewChat(newNickname)}
+                  className="flex-1 py-2 text-sm text-white bg-primary rounded-xl hover:bg-primary-dark">
+                  开始
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

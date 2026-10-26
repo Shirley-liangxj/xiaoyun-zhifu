@@ -61,6 +61,12 @@ class Message(Base):
     String(20), nullable=True,
     comment="AI建议状态：pending/accepted/edited_and_accepted/rejected/auto_sent/legacy_sent",
   )
+  meta: Mapped[Optional[str]] = mapped_column(
+    Text, nullable=True, comment="结构化元数据JSON：执行计划/待确认动作/业务卡片"
+  )
+  is_internal: Mapped[bool] = mapped_column(
+    default=False, comment="内部备注：仅坐席可见，不下发买家端"
+  )
   created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
   # 关联

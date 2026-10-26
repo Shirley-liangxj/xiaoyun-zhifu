@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  listConversations, createConversation, getConversation,
+  listConversations, createConversation, getConversation, getCustomerProfile,
   sendMessage, closeConversation, triggerAiSuggest,
   acceptSuggestion, rejectSuggestion, acceptConversation,
   listConversationReviews, decideConversationReview,
@@ -14,6 +14,36 @@ function confidenceLevel(score) {
   if (score >= 0.7) return { label: '高', color: 'bg-green-100 text-green-700' }
   if (score >= 0.4) return { label: '中', color: 'bg-yellow-100 text-yellow-700' }
   return { label: '低', color: 'bg-red-100 text-red-600' }
+}
+
+function parseMeta(metaStr) {
+  if (!metaStr) return {}
+  try { return JSON.parse(metaStr) || {} } catch { return {} }
+}
+
+function formatMoment(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function ProfileStat({ label, value }) {
+  return (
+    <div className="rounded-lg bg-gray-50 px-2 py-2">
+      <p className="text-base font-semibold text-gray-800 leading-none">{value ?? 0}</p>
+      <p className="text-[10px] text-gray-400 mt-1">{label}</p>
+    </div>
+  )
+}
+
+function ProfileRow({ k, v }) {
+  return (
+    <div className="flex items-center justify-between text-[11px]">
+      <span className="text-gray-400">{k}</span>
+      <span className="text-gray-600">{v}</span>
+    </div>
+  )
 }
 
 function parseSources(sourcesStr) {
@@ -158,7 +188,12 @@ export default function Conversations() {
   const [statusFilter, setStatusFilter] = useState('')
   const [saveKb, setSaveKb] = useState(null)
   const [savingKb, setSavingKb] = useState(false)
+  const [profile, setProfile] = useState(null)
+  const [internalNote, setInternalNote] = useState(false)
+  const [keyword, setKeyword] = useState('')
   const messagesEndRef = useRef(null)
+  const messagesBoxRef = useRef(null)
+  const atBottomRef = useRef(true)
   const activeIdRef = useRef(null)
   const prevWaitingRef = useRef(0)
   const openedFromUrl = useRef(false)
@@ -211,6 +246,9 @@ export default function Conversations() {
       setEditContent('')
       setShowQuickReplies(false)
       setSaveKb(null)
+      setInternalNote(false)
+      setProfile(null)
+      atBottomRef.current = true
     }
     const [res, reviewRes] = await Promise.all([
       getConversation(id),
@@ -219,6 +257,18 @@ export default function Conversations() {
     setActiveConv(res.data)
     setMessages(res.data.messages || [])
     setReviews(reviewRes.data || [])
+    if (switching) {
+      requestAnimationFrame(() => {
+        const el = messagesBoxRef.current
+        if (el) el.scrollTop = el.scrollHeight
+      })
+    }
+    try {
+      const p = await getCustomerProfile(id)
+      setProfile(p.data)
+    } catch {
+      /* 客户信息卡失败不影响主流程 */
+    }
   }
 
   const openSaveToKnowledge = (agentMsg) => {
@@ -293,7 +343,17 @@ export default function Conversations() {
     }
   }, [loading, searchParams])
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => {
+    const el = messagesBoxRef.current
+    if (!el || !atBottomRef.current) return
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }, [messages])
+
+  const handleMessagesScroll = () => {
+    const el = messagesBoxRef.current
+    if (!el) return
+    atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -331,9 +391,10 @@ export default function Conversations() {
   const handleSend = async (e) => {
     e.preventDefault()
     if (!input.trim() || !activeId) return
+    if (replyBlocked && !internalNote) return
     setSending(true)
     try {
-      await sendMessage(activeId, { content: input, role: 'agent' })
+      await sendMessage(activeId, { content: input, role: 'agent', is_internal: internalNote })
       setInput('')
       await refreshMessages()
     } finally {
@@ -463,6 +524,12 @@ export default function Conversations() {
   }
 
   const chatMessages = messages.filter((m) => m.role !== 'ai_suggestion' || (m.is_sent && m.suggestion_status !== 'rejected'))
+  const kw = keyword.trim().toLowerCase()
+  const visibleConversations = kw
+    ? conversations.filter((c) =>
+        (c.customer_name || '').toLowerCase().includes(kw) ||
+        (c.last_message || '').toLowerCase().includes(kw))
+    : conversations
   const pendingSuggestions = messages.filter((m) => m.role === 'ai_suggestion' && (m.suggestion_status === 'pending' || !m.is_sent))
   const canReply = activeConv && activeConv.status !== 'closed'
   const hasCustomerMsg = messages.some((m) => m.role === 'customer')
@@ -507,14 +574,22 @@ export default function Conversations() {
                 </button>
               ))}
             </div>
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="搜索客户名 / 消息内容"
+              className="mt-2 w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            />
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <p className="text-center text-gray-400 text-xs p-4">加载中...</p>
-            ) : conversations.length === 0 ? (
-              <p className="text-center text-gray-400 text-xs p-4">暂无会话<br /><span className="text-gray-300">买家可从 /chat 进线</span></p>
+            ) : visibleConversations.length === 0 ? (
+              <p className="text-center text-gray-400 text-xs p-4">
+                {kw ? '没有匹配的会话' : <>暂无会话<br /><span className="text-gray-300">买家可从 /chat 进线</span></>}
+              </p>
             ) : (
-              conversations.map((c) => (
+              visibleConversations.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => loadConversation(c.id)}
@@ -585,7 +660,7 @@ export default function Conversations() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              <div ref={messagesBoxRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto p-5 space-y-3">
                 {chatMessages.length === 0 && pendingSuggestions.length === 0 && (
                   <p className="text-center text-gray-300 text-sm mt-8">
                     {activeConv.status === 'waiting_human'
@@ -594,7 +669,14 @@ export default function Conversations() {
                   </p>
                 )}
                 {chatMessages.map((msg) => (
-                  isSystemNotice(msg) ? (
+                  msg.is_internal ? (
+                    <div key={msg.id} className="flex justify-center">
+                      <div className="max-w-[85%] text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <span className="font-medium">内部备注 · </span>{msg.content}
+                        <span className="opacity-50 ml-2">（买家不可见）</span>
+                      </div>
+                    </div>
+                  ) : isSystemNotice(msg) ? (
                     <div key={msg.id} className="flex justify-center">
                       <div className="max-w-[85%] text-center text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-2">
                         <span className="opacity-70">系统 · </span>{msg.content}
@@ -605,6 +687,22 @@ export default function Conversations() {
                       <div className={`max-w-[70%] rounded-xl px-4 py-2.5 ${roleColor[msg.role] || 'bg-gray-50'}`}>
                         <p className="text-xs font-medium mb-0.5 opacity-60">{roleLabel[msg.role] || msg.role}</p>
                         <p className="text-sm">{msg.content}</p>
+                        {parseMeta(msg.meta).plan_steps?.length > 0 && (
+                          <details className="mt-2 rounded-lg bg-white/70 border border-black/5 px-2 py-1.5">
+                            <summary className="text-[11px] text-gray-500 cursor-pointer select-none">
+                              AI 执行计划{parseMeta(msg.meta).intent_label ? ` · ${parseMeta(msg.meta).intent_label}` : ''}
+                              （{parseMeta(msg.meta).plan_steps.length} 步）
+                            </summary>
+                            <ul className="mt-1 space-y-0.5">
+                              {parseMeta(msg.meta).plan_steps.map((s, i) => (
+                                <li key={i} className="text-[11px] text-gray-500">
+                                  · {s.title}{s.detail ? `：${s.detail}` : ''}
+                                  {s.demo ? '（演示数据）' : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
                         {parseSources(msg.sources).length > 0 && (
                           <div className="mt-2 pt-2 border-t border-black/5">
                             {parseSources(msg.sources).map((s, i) => (
@@ -637,20 +735,39 @@ export default function Conversations() {
 
               {canReply ? (
                 <form onSubmit={handleSend} className="p-4 border-t border-gray-100 flex gap-2">
+                  <button type="button" onClick={() => setInternalNote((v) => !v)}
+                    className={`shrink-0 px-2.5 py-2 text-xs rounded-lg border ${
+                      internalNote
+                        ? 'bg-amber-50 border-amber-300 text-amber-700'
+                        : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                    }`}
+                    title="内部备注：只在坐席端可见，买家看不到">
+                    内部备注
+                  </button>
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder={hasWaitingReview ? '请先在审核卡中批准、拒绝或要求补充材料...' : (needsAccept ? '请先点击「接入」再回复...' : '回复买家（将同步到买家端）...')}
-                    disabled={replyBlocked}
-                    className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
+                    placeholder={
+                      internalNote
+                        ? '写内部备注（买家不可见），如：该客户已三次进线'
+                        : hasWaitingReview ? '请先在审核卡中批准、拒绝或要求补充材料...' : (needsAccept ? '请先点击「接入」再回复...' : '回复买家（将同步到买家端）...')
+                    }
+                    disabled={replyBlocked && !internalNote}
+                    className={`flex-1 px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50 ${
+                      internalNote ? 'border-amber-200 bg-amber-50/40' : 'border-gray-200'
+                    }`}
                   />
                   <button type="button" onClick={openQuickReplies}
                     className="px-3 py-2 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50">
                     话术
                   </button>
-                  <button type="submit" disabled={sending || replyBlocked}
-                    className="px-5 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary-dark disabled:opacity-60">
-                    发送
+                  <button type="submit" disabled={sending || (replyBlocked && !internalNote)}
+                    className={`px-5 py-2 text-sm rounded-lg disabled:opacity-60 ${
+                      internalNote
+                        ? 'bg-amber-500 text-white hover:bg-amber-600'
+                        : 'bg-primary text-white hover:bg-primary-dark'
+                    }`}>
+                    {internalNote ? '存备注' : '发送'}
                   </button>
                 </form>
               ) : (
@@ -660,10 +777,57 @@ export default function Conversations() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-300 text-sm gap-2">
               <p>选择左侧会话，或打开买家端开始进线</p>
-              <a href="/chat" target="_blank" rel="noreferrer" className="text-primary text-xs hover:underline">打开买家端 /chat ↗</a>
+              <a href="/chat?new=1" target="_blank" rel="noreferrer" className="text-primary text-xs hover:underline">打开买家端 /chat ↗</a>
             </div>
           )}
         </div>
+
+        {activeConv && profile && (
+          <aside className="w-64 border-l border-gray-100 flex flex-col shrink-0 overflow-y-auto">
+            <div className="p-4 border-b border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 mb-2">客户信息</p>
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm shrink-0">
+                  {(profile.customer_name || '客').slice(0, 1)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{profile.customer_name}</p>
+                  <p className="text-[11px] text-gray-400">{profile.channel} · {statusText(profile.status)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 grid grid-cols-2 gap-2 border-b border-gray-100">
+              <ProfileStat label="进线次数" value={profile.total_conversations} />
+              <ProfileStat label="本会话消息" value={profile.total_messages} />
+              <ProfileStat label="未结工单" value={profile.open_tickets} />
+              <ProfileStat label="关联订单" value={profile.orders?.length || 0} />
+            </div>
+
+            <div className="p-4 border-b border-gray-100 space-y-1.5">
+              <ProfileRow k="首次进线" v={formatMoment(profile.first_contact_at)} />
+              <ProfileRow k="最近活跃" v={formatMoment(profile.last_active_at)} />
+            </div>
+
+            <div className="p-4">
+              <p className="text-xs font-semibold text-gray-500 mb-2">关联订单</p>
+              {profile.orders?.length ? profile.orders.map((o) => (
+                <div key={o.order_id} className="mb-2 p-2 rounded-lg border border-gray-100 bg-gray-50">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-medium text-gray-700">{o.order_id}</span>
+                    <span className="text-[10px] text-gray-500 shrink-0">{o.status}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5 truncate">{o.product}</p>
+                  <p className="text-[10px] text-gray-400">
+                    ¥{o.amount} · 购后 {o.days_since_purchase} 天 · {o.express}
+                  </p>
+                </div>
+              )) : (
+                <p className="text-[11px] text-gray-300">无匹配的演示订单</p>
+              )}
+            </div>
+          </aside>
+        )}
       </div>
 
       {showOutbound && (

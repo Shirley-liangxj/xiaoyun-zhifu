@@ -16,7 +16,8 @@ const navItems = [
 export default function Sidebar() {
   const { user } = useAuth()
   const [waitingCount, setWaitingCount] = useState(0)
-  const chatHref = user?.company_id ? `/chat?company_id=${user.company_id}` : '/chat'
+  // 从坐席台点进买家端 = 新一次咨询；避免落回上一次的旧会话
+  const chatHref = user?.company_id ? `/chat?company_id=${user.company_id}&new=1` : '/chat?new=1'
 
   useEffect(() => {
     const load = async () => {

@@ -3,6 +3,25 @@ from __future__ import annotations
 
 import re
 
+from app.agent.tools.order_query import _load_orders
+
+
+def _fill_from_order(order_id: str | None, amount, days):
+  """有单号时用订单系统里的金额/签收天数补全，避免让买家重复报数。"""
+  if not order_id or (amount is not None and days is not None):
+    return amount, days
+  try:
+    for o in _load_orders():
+      if (o.get("order_id") or "").upper() == order_id.strip().upper():
+        if amount is None:
+          amount = o.get("amount")
+        if days is None:
+          days = o.get("days_since_purchase")
+        break
+  except Exception:
+    pass
+  return amount, days
+
 
 def _parse_amount_and_days(message: str) -> tuple[float | None, int | None]:
   amount = None
@@ -32,6 +51,7 @@ def calc_refund(
   parsed_amount, parsed_days = _parse_amount_and_days(message)
   amt = amount if amount is not None else parsed_amount
   days = days_since_purchase if days_since_purchase is not None else parsed_days
+  amt, days = _fill_from_order(order_id, amt, days)
   missing_fields = []
   if not order_id:
     missing_fields.append("order_id")
