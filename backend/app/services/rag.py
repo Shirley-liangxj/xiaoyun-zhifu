@@ -95,7 +95,12 @@ def remove_document_index(company_id: int, doc_id: int):
 
 
 def search_knowledge(company_id: int, query: str, top_k: int = 5) -> list[dict]:
-  """RAG 检索：查询向量化后在 FAISS 中搜索 top_k 相关块"""
-  query_embedding = embedding_service.embed_text(query)
-  store = get_vector_store(company_id)
-  return store.search(query_embedding, top_k=top_k)
+    """RAG 检索：查询向量化后在 FAISS 中搜索 top_k 相关块"""
+    query_embedding = embedding_service.embed_text(query)
+    return search_with_embedding(company_id, query_embedding, top_k=top_k)
+
+
+def search_with_embedding(company_id: int, query_embedding: list[float], top_k: int = 5) -> list[dict]:
+    """用已向量化的查询做检索。评测等批量场景先统一 embed，避免逐题重复调外部 API。"""
+    store = get_vector_store(company_id)
+    return store.search(query_embedding, top_k=top_k)

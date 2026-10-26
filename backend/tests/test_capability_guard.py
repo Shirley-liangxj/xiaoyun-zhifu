@@ -67,7 +67,8 @@ class CapabilityGuardTests(unittest.TestCase):
     }]
     with (
       patch.object(eval_runner, "load_questions", return_value=[question]),
-      patch.object(eval_runner, "search_knowledge", return_value=high_confidence_sources),
+      patch.object(eval_runner.embedding_service, "embed_batch", return_value=[[0.0] * 2048]),
+      patch.object(eval_runner, "search_with_embedding", return_value=high_confidence_sources),
     ):
       report = eval_runner.run_evaluation(1)
 

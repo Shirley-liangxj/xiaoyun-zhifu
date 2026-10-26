@@ -7,7 +7,8 @@ from pathlib import Path
 
 from app.agent.intent_router import detect_unsupported_capability
 from app.services.ai_suggestion import _calc_confidence
-from app.services.rag import search_knowledge
+from app.services.embedding import embedding_service
+from app.services.rag import search_with_embedding
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 # Docker 中代码与评测集都挂载在 /app；本机开发时评测集位于项目根目录。
@@ -97,19 +98,32 @@ def run_evaluation(company_id: int, top_k: int = 3, confidence_threshold: float 
     "missed_transfer": 0,
   })
 
-  for q in questions:
+  # 一次性向量化全部问题：原本逐题调用会让 40 题串行等 40 次外部 API，
+  # 直接超过前端超时；批量后只发 1 次请求，评测耗时从分钟级降到秒级。
+  batch_embed_error: str | None = None
+  embeddings: list[list[float]] = []
+  try:
+    embeddings = embedding_service.embed_batch([q["question"] for q in questions])
+  except Exception as e:
+    batch_embed_error = str(e)
+
+  for idx, q in enumerate(questions):
     question = q["question"]
     category = q.get("category", "")
     keywords = q.get("expected_keywords", [])
     expected_behavior = q.get("expected_behavior", "answer")
 
-    try:
-      sources = search_knowledge(company_id, question, top_k=top_k)
-    except Exception as e:
+    if batch_embed_error is not None or idx >= len(embeddings):
       sources = []
-      error = str(e)
+      error = batch_embed_error or "批量向量化结果缺失"
     else:
-      error = None
+      try:
+        sources = search_with_embedding(company_id, embeddings[idx], top_k=top_k)
+      except Exception as e:
+        sources = []
+        error = str(e)
+      else:
+        error = None
 
     confidence = _calc_confidence(sources)
     retrieved = len(sources) > 0

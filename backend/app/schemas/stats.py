@@ -1,4 +1,6 @@
 """数据统计 Schema"""
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -22,7 +24,11 @@ class OverviewStats(BaseModel):
   ai_pending: int = 0
   ai_auto_sent: int = 0
   ai_processed: int = 0
-  ai_accept_rate: float = 0.0
+  ai_total_suggestions: int = 0
+  # 无人工处理记录时为 None，前端显示「—」而不是 0%
+  ai_accept_rate: Optional[float] = None
+  # 自动应答 ÷（自动应答 + 待人工处理）；无自动应答时为 None
+  ai_auto_rate: Optional[float] = None
 
 
 class TicketStatusBreakdown(BaseModel):

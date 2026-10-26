@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { runAgentEval, runEval } from '../api/eval'
+import { evalErrorMessage, runAgentEval, runEval } from '../api/eval'
 
 function confidenceColor(c) {
   if (c >= 0.7) return 'text-green-600'
@@ -27,7 +27,7 @@ export default function Evaluation() {
       const res = await runEval()
       setReport(res.data)
     } catch (err) {
-      setError(err.response?.data?.detail || '评测失败，请检查 API Key 和知识库索引')
+      setError(evalErrorMessage(err, '评测失败，请检查 API Key 和知识库索引'))
     } finally {
       setLoading(false)
     }
@@ -40,7 +40,7 @@ export default function Evaluation() {
       const res = await runAgentEval()
       setAgentReport(res.data)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Agent 控制层评测失败')
+      setError(evalErrorMessage(err, 'Agent 控制层评测失败'))
     } finally {
       setAgentLoading(false)
     }

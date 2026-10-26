@@ -102,27 +102,59 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {/* AI 采纳率 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            {/* AI 自动应答率（主指标）：AI 独立处理了多少 */}
             <div className="bg-white rounded-xl shadow-sm p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">AI 建议采纳率</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">AI 自动应答率</h3>
               <div className="flex items-end gap-2 mb-2">
-                <span className="text-4xl font-bold text-primary">{o.ai_accept_rate}%</span>
+                <span className="text-4xl font-bold text-primary">
+                  {o.ai_auto_rate != null ? `${o.ai_auto_rate}%` : '—'}
+                </span>
               </div>
               <p className="text-xs text-gray-500">
-                采纳 {o.ai_accepted || 0} / 已处理 {o.ai_processed || 0}
+                自动应答 {o.ai_auto_sent || 0} / 已产生建议 {o.ai_total_suggestions || 0}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                原样 {o.ai_original_accepted || 0} · 编辑后 {o.ai_edited_accepted || 0} · 拒绝 {o.ai_rejected || 0}
+                剩余 {o.ai_pending || 0} 条待人工处理
               </p>
+              <p className="text-[11px] text-gray-300 mt-2">
+                公式：自动应答 ÷（自动应答 + 待人工处理）
+              </p>
+              <div className="mt-3 bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div className="h-full bg-primary rounded-full" style={{ width: `${o.ai_auto_rate ?? 0}%` }} />
+              </div>
+            </div>
+
+            {/* 人工采纳率（次指标）：分母无定义时显示 — */}
+            <div className="bg-white rounded-xl shadow-sm p-5">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">人工采纳率</h3>
+              <div className="flex items-end gap-2 mb-2">
+                <span className={`text-4xl font-bold ${o.ai_accept_rate != null ? 'text-primary' : 'text-gray-300'}`}>
+                  {o.ai_accept_rate != null ? `${o.ai_accept_rate}%` : '—'}
+                </span>
+              </div>
+              {o.ai_processed > 0 ? (
+                <>
+                  <p className="text-xs text-gray-500">
+                    采纳 {o.ai_accepted || 0} / 已处理 {o.ai_processed || 0}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    原样 {o.ai_original_accepted || 0} · 编辑后 {o.ai_edited_accepted || 0} · 拒绝 {o.ai_rejected || 0}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  尚无人工处理记录
+                </p>
+              )}
               <p className="text-xs text-gray-400 mt-1">
-                待处理 {o.ai_pending || 0} · 自动发送 {o.ai_auto_sent || 0}（不计入采纳率）
+                自动应答 {o.ai_auto_sent || 0} 条不计入（未经坐席审核）
               </p>
               <p className="text-[11px] text-gray-300 mt-2">
                 公式：（原样采纳 + 编辑采纳）÷（原样采纳 + 编辑采纳 + 拒绝）
               </p>
               <div className="mt-3 bg-gray-100 rounded-full h-2 overflow-hidden">
-                <div className="h-full bg-primary rounded-full" style={{ width: `${o.ai_accept_rate}%` }} />
+                <div className="h-full bg-primary rounded-full" style={{ width: `${o.ai_accept_rate ?? 0}%` }} />
               </div>
             </div>
 

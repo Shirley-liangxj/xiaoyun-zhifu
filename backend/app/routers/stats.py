@@ -96,7 +96,9 @@ def get_dashboard_stats(
       ai_pending=adoption["pending"],
       ai_auto_sent=adoption["auto_sent"],
       ai_processed=adoption["processed_suggestions"],
+      ai_total_suggestions=adoption["total_suggestions"],
       ai_accept_rate=adoption["accept_rate"],
+      ai_auto_rate=adoption["auto_rate"],
     ),
     ticket_status=TicketStatusBreakdown(
       open=ticket_count_by_status("open"),
