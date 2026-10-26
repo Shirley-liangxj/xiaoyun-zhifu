@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getPublicConfig, getPublicConversation, publicChat, transferToHuman, confirmPublicAction } from '../api/public'
+import { getPublicConfig, getPublicConversation, getPublicOrders, publicChat, resolvePublicConversation, transferToHuman, confirmPublicAction } from '../api/public'
 
 const STORAGE_KEY = 'xiaoyun_buyer_session'
 const BOTTOM_THRESHOLD = 80
@@ -54,6 +54,65 @@ function ActionBar({ action, loading, onConfirm }) {
         {action.label || '确认提交'}
       </button>
       <p className="text-[10px] text-gray-400 mt-1 text-center">提交后由客服跟进处理</p>
+    </div>
+  )
+}
+
+// 旅程阶段条：买家随时知道自己走到哪一步了（对齐国标「不得要求重复陈述、流程可见」）
+function JourneyBar({ status, humanMode, hasMessages, canResolve, onResolve }) {
+  if (!hasMessages) return null
+  let label = 'AI 智能接待中'
+  let cls = 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (status === 'closed') {
+    label = '✓ 本次咨询已完成'
+    cls = 'bg-gray-100 text-gray-500 border-gray-200'
+  } else if (humanMode) {
+    label = '人工客服处理中'
+    cls = 'bg-sky-50 text-sky-700 border-sky-200'
+  } else if (status === 'waiting_human') {
+    label = '已转人工 · 排队接入中'
+    cls = 'bg-orange-50 text-orange-700 border-orange-200'
+  }
+  return (
+    <div className="shrink-0 px-4 py-1.5 border-b border-gray-100 flex items-center gap-2">
+      <span className={`text-[11px] px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>
+      <span className="text-[10px] text-gray-300">售后咨询进度</span>
+      {canResolve && (
+        <button type="button" onClick={onResolve}
+          className="ml-auto text-[11px] text-gray-400 hover:text-primary">结束咨询</button>
+      )}
+    </div>
+  )
+}
+
+// 订单卡片（「我的订单」弹层内）：点击按钮直接发起，不再手输单号
+function OrderItem({ order, disabled, onPick }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-gray-800 truncate">{order.product || order.order_id}</p>
+        {order.status && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 shrink-0">{order.status}</span>
+        )}
+      </div>
+      <p className="text-[11px] text-gray-400 mt-0.5">
+        {order.order_id}{order.amount != null ? ` · ¥${Number(order.amount).toFixed(2)}` : ''}
+      </p>
+      {(order.express || order.tracking_no) && (
+        <p className="text-[11px] text-gray-400">{order.express} {order.tracking_no}</p>
+      )}
+      <div className="flex gap-2 mt-2">
+        <button type="button" disabled={disabled}
+          onClick={() => onPick(`帮我查一下订单 ${order.order_id} 的物流`)}
+          className="flex-1 text-[11px] py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:border-primary hover:text-primary disabled:opacity-50">
+          查物流
+        </button>
+        <button type="button" disabled={disabled}
+          onClick={() => onPick(`我要退货 ${order.order_id}`)}
+          className="flex-1 text-[11px] py-1.5 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50">
+          申请退货
+        </button>
+      </div>
     </div>
   )
 }
@@ -122,12 +181,21 @@ export default function Chat() {
   const [newNickname, setNewNickname] = useState('')
 
   const [showJump, setShowJump] = useState(false)
+  const [orders, setOrders] = useState([])
+  const [showOrders, setShowOrders] = useState(false)
+  const [convStatus, setConvStatus] = useState(null)
   const listRef = useRef(null)
   const atBottomRef = useRef(true)
   const lastCountRef = useRef(0)
   const loadingRef = useRef(false)
 
   useEffect(() => { loadingRef.current = loading }, [loading])
+
+  const fetchOrders = (name) => {
+    getPublicOrders(name, activeCompanyId)
+      .then((res) => setOrders(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setOrders([]))
+  }
 
   const scrollToBottom = (smooth = true) => {
     const el = listRef.current
@@ -160,6 +228,7 @@ export default function Chat() {
     setNicknameInput(saved.nickname)
     setNewNickname(saved.nickname)
     setReady(true)
+    fetchOrders(saved.nickname)
     if (saved.conversationId) {
       if (forceNew) {
         // 从坐席台进来 = 新一次咨询；旧会话留一个「继续上次对话」入口
@@ -205,6 +274,7 @@ export default function Chat() {
         if (cancelled) return
         const data = res.data
         setHumanMode(!!data.human_mode)
+        setConvStatus(data.status || null)
         const remote = (data.messages || []).map((m) => ({
           id: m.id,
           role: m.role,
@@ -236,10 +306,12 @@ export default function Chat() {
     setNewNickname(name)
     saveSession(activeCompanyId, { nickname: name, conversationId: null })
     setConversationId(null)
+    setConvStatus(null)
     setHumanMode(false)
     setReady(true)
     setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
     lastCountRef.current = 1
+    fetchOrders(name)
   }
 
   const resetToNewChat = (name) => {
@@ -250,12 +322,15 @@ export default function Chat() {
     setNewNickname(finalName)
     saveSession(activeCompanyId, { nickname: finalName, conversationId: null })
     setConversationId(null)
+    setConvStatus(null)
     setHumanMode(false)
     setShowFaq(false)
     setShowNewChat(false)
+    setShowOrders(false)
     setPreviousSession(null)
     setMessages([{ role: 'assistant', content: welcome, isWelcome: true }])
     lastCountRef.current = 1
+    fetchOrders(finalName)
     requestAnimationFrame(() => scrollToBottom(false))
   }
 
@@ -299,12 +374,12 @@ export default function Chat() {
     }
   }
 
-  const handleSend = async (e) => {
-    e.preventDefault()
-    if (!input.trim() || loading) return
-    const userMsg = input.trim()
+  const sendMessage = async (text) => {
+    const userMsg = (text || '').trim()
+    if (!userMsg || loading || convStatus === 'closed') return
     setInput('')
     setShowFaq(false)
+    setShowOrders(false)
     setMessages((prev) => [...prev, {
       role: 'user',
       content: userMsg,
@@ -320,6 +395,32 @@ export default function Chat() {
         content: '抱歉，服务暂时不可用，请稍后再试。',
         error: true,
       }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSend = (e) => {
+    e.preventDefault()
+    sendMessage(input)
+  }
+
+  const handleResolve = async () => {
+    if (!conversationId || loading || convStatus === 'closed') return
+    setLoading(true)
+    try {
+      const res = await resolvePublicConversation(conversationId, nickname, activeCompanyId)
+      setConvStatus('closed')
+      setHumanMode(false)
+      setMessages((prev) => [...prev, {
+        id: res.data.message_id,
+        role: 'assistant',
+        content: res.data.answer,
+        created_at: new Date().toISOString(),
+      }])
+      requestAnimationFrame(() => scrollToBottom(true))
+    } catch {
+      /* ignore */
     } finally {
       setLoading(false)
     }
@@ -399,6 +500,14 @@ export default function Chat() {
             </button>
           </div>
         )}
+
+        <JourneyBar
+          status={convStatus}
+          humanMode={humanMode}
+          hasMessages={messages.length > 1}
+          canResolve={!!conversationId && convStatus !== 'closed'}
+          onResolve={handleResolve}
+        />
 
         <div className="relative flex-1 min-h-0">
           <div ref={listRef} onScroll={handleScroll} className="absolute inset-0 overflow-y-auto p-4 space-y-3 bg-gray-50">
@@ -486,11 +595,39 @@ export default function Chat() {
           </div>
         )}
 
+        {showOrders && (
+          <div className="absolute inset-x-0 bottom-16 mx-3 mb-1 bg-white rounded-2xl shadow-xl border border-gray-100 p-3 z-10 max-h-[55%] overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-700">我的订单</p>
+              <button type="button" onClick={() => setShowOrders(false)} className="text-xs text-gray-400">关闭</button>
+            </div>
+            {orders.length === 0 ? (
+              <p className="text-[11px] text-gray-400 py-2">暂未找到关联订单</p>
+            ) : (
+              <div className="space-y-2">
+                {orders.map((o) => (
+                  <OrderItem
+                    key={o.order_id}
+                    order={o}
+                    disabled={convStatus === 'closed'}
+                    onPick={(t) => { setShowOrders(false); sendMessage(t) }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <form onSubmit={handleSend} className="p-3 border-t border-gray-100 flex gap-2 bg-white items-center shrink-0">
           <button type="button" onClick={() => setShowFaq((v) => !v)}
             className="shrink-0 text-xs px-2 py-2 border border-gray-200 text-gray-600 rounded-full hover:bg-gray-50"
             title="常见问题">
             常见
+          </button>
+          <button type="button" onClick={() => setShowOrders((v) => !v)}
+            className="shrink-0 text-xs px-2 py-2 border border-gray-200 text-gray-600 rounded-full hover:bg-gray-50"
+            title="我的订单">
+            订单
           </button>
           {!humanMode && (
             <button type="button" onClick={handleTransfer} disabled={loading}

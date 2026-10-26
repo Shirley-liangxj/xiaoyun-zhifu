@@ -39,3 +39,15 @@ export const getPublicConversation = (conversationId, companyId) =>
   publicApi.get(`/api/public/conversations/${conversationId}`, {
     params: withCompany(companyId),
   })
+
+export const getPublicOrders = (customerName, companyId) =>
+  publicApi.get('/api/public/orders', {
+    params: { customer_name: customerName || '访客', ...withCompany(companyId) },
+  })
+
+export const resolvePublicConversation = (conversationId, customerName, companyId) =>
+  publicApi.post('/api/public/resolve', {
+    conversation_id: conversationId,
+    customer_name: customerName || '访客',
+    company_id: companyId || undefined,
+  }, { params: withCompany(companyId) })

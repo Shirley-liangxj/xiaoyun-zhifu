@@ -16,6 +16,13 @@ class PublicTransferRequest(BaseModel):
   company_id: int | None = Field(None, description="租户公司 ID")
 
 
+class PublicResolveRequest(BaseModel):
+  """买家确认问题已解决，会话收尾"""
+  conversation_id: int = Field(..., description="会话 ID")
+  customer_name: str = Field(default="访客", max_length=50)
+  company_id: int | None = Field(None, description="租户公司 ID")
+
+
 class PublicConfirmRequest(BaseModel):
   confirmation_id: str = Field(..., min_length=1)
   conversation_id: int | None = None
@@ -59,6 +66,16 @@ class OrderCardOut(BaseModel):
   express: str | None = None
   tracking_no: str | None = None
   logistics: str | None = None
+  amount: float | None = None
+
+
+class PublicOrderItemOut(BaseModel):
+  """买家端「我的订单」列表项 — 只含买家看得懂的业务字段"""
+  order_id: str
+  product: str | None = None
+  status: str | None = None
+  express: str | None = None
+  tracking_no: str | None = None
   amount: float | None = None
 
 

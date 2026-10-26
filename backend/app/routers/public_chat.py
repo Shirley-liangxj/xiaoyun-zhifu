@@ -15,10 +15,18 @@ from app.schemas.public import (
   PublicConfigOut,
   PublicConfirmRequest,
   PublicConversationOut,
+  PublicOrderItemOut,
+  PublicResolveRequest,
   PublicTransferRequest,
 )
 from app.services.errors import ExternalServiceError
-from app.services.public_chat import buyer_response, list_buyer_messages, transfer_to_human
+from app.services.public_chat import (
+  buyer_response,
+  list_buyer_messages,
+  list_buyer_orders,
+  resolve_conversation,
+  transfer_to_human,
+)
 from app.services.settings import get_or_create_settings
 
 router = APIRouter(prefix="/api/public", tags=["买家端"])
@@ -127,3 +135,29 @@ def public_messages(
 ):
   cid = resolve_company_id(db, company_id)
   return PublicConversationOut(**list_buyer_messages(db, cid, conversation_id))
+
+
+@router.get("/orders", response_model=list[PublicOrderItemOut], summary="买家端「我的订单」列表")
+def public_orders(
+  customer_name: str = Query(default="访客", max_length=50),
+  company_id: int | None = Query(None, description="租户公司 ID"),
+  db: Session = Depends(get_db),
+):
+  """演示环境的订单列表：按昵称匹配演示订单，卡片点击代替手输单号。"""
+  resolve_company_id(db, company_id)
+  return list_buyer_orders(company_id or settings.DEFAULT_COMPANY_ID, customer_name)
+
+
+@router.post("/resolve", response_model=PublicChatResponse, summary="买家确认问题已解决，结束咨询")
+def public_resolve(
+  body: PublicResolveRequest,
+  company_id: int | None = Query(None, description="租户公司 ID"),
+  db: Session = Depends(get_db),
+  _: None = Depends(rate_limit),
+):
+  cid = resolve_company_id(db, body.company_id if body.company_id is not None else company_id)
+  try:
+    result = resolve_conversation(db, cid, body.conversation_id, body.customer_name)
+  except ValueError as e:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+  return PublicChatResponse(**buyer_response(result))

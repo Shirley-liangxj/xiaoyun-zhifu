@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -142,6 +143,69 @@ def buyer_response(result: dict) -> dict:
     "human_mode": bool(result.get("human_mode")),
     "card": buyer_card(result.get("card")),
     "action": buyer_action(result.get("pending_confirmation")),
+  }
+
+
+ORDERS_PATH = Path(__file__).resolve().parents[1] / "data" / "orders_demo.json"
+
+# 订单列表允许下发给买家的字段（白名单，和 buyer_card 同口径）
+_ORDER_LIST_FIELDS = ("order_id", "product", "status", "express", "tracking_no", "amount")
+
+
+def list_buyer_orders(company_id: int, customer_name: str) -> list[dict]:
+  """按昵称匹配演示订单，返回「我的订单」列表（买家视图）。
+
+  演示环境没有真实账号体系，用 customer_hint 做归属匹配：
+  昵称包含 hint 或 hint 包含昵称即算匹配；匹配不到时返回全部演示订单
+  （保证买家端永远有得可点，由坐席侧标注「演示」区分）。
+  """
+  try:
+    raw = json.loads(ORDERS_PATH.read_text(encoding="utf-8"))
+  except Exception:
+    return []
+  name = (customer_name or "").strip()
+  matched, fallback = [], []
+  for o in raw:
+    item = {k: o.get(k) for k in _ORDER_LIST_FIELDS}
+    if not item.get("order_id"):
+      continue
+    fallback.append(item)
+    hint = (o.get("customer_hint") or "").strip()
+    if name and hint and (hint in name or name in hint):
+      matched.append(item)
+  return matched or fallback
+
+
+def resolve_conversation(db: Session, company_id: int, conversation_id: int, customer_name: str) -> dict:
+  """买家确认问题解决 → 会话收尾（closed + 结束语）。旅程终点，消除「戛然而止」。"""
+  conv = db.query(Conversation).filter(
+    Conversation.id == conversation_id,
+    Conversation.company_id == company_id,
+  ).first()
+  if not conv:
+    raise ValueError("会话不存在")
+  if conv.status == "closed":
+    return {"conversation_id": conv.id, "status": "closed", "message_id": 0, "already": True}
+  conv.status = "closed"
+  end_msg = Message(
+    conversation_id=conv.id,
+    role="ai_suggestion",
+    content="好的，如果后续还有任何问题，随时回来找我，祝您生活愉快～",
+    confidence=1.0,
+    sources="[]",
+    is_sent=True,
+    suggestion_status="auto_sent",
+  )
+  db.add(end_msg)
+  db.commit()
+  db.refresh(end_msg)
+  return {
+    "conversation_id": conv.id,
+    "status": "closed",
+    "message_id": end_msg.id,
+    "answer": end_msg.content,
+    "need_human": False,
+    "human_mode": False,
   }
 
 
