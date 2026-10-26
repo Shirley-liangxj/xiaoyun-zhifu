@@ -223,18 +223,15 @@ export default function Chat() {
       .catch(() => {})
 
     const saved = loadSession(resolvedCompanyId)
-    if (!saved?.nickname) return
-    setNickname(saved.nickname)
-    setNicknameInput(saved.nickname)
-    setNewNickname(saved.nickname)
-    setReady(true)
-    fetchOrders(saved.nickname)
-    if (saved.conversationId) {
-      if (forceNew) {
-        // 从坐席台进来 = 新一次咨询；旧会话留一个「继续上次对话」入口
+    // 预填上次昵称，但【不】自动 setReady(true)：让买家每次进线都能重新选择「我是谁」，
+    // 否则残留昵称（如「天天」）会让选择框一闪而过、直接默认进去、来不及改。
+    if (saved?.nickname) {
+      setNickname(saved.nickname)
+      setNicknameInput(saved.nickname)
+      setNewNickname(saved.nickname)
+      if (saved.conversationId) {
+        // 旧会话留一个「继续上次对话」入口（从坐席台进来也走这里）
         setPreviousSession(saved.conversationId)
-      } else {
-        setConversationId(saved.conversationId)
       }
     }
   }, [resolvedCompanyId, forceNew])
@@ -338,6 +335,14 @@ export default function Chat() {
     if (!previousSession) return
     setConversationId(previousSession)
     setPreviousSession(null)
+    saveSession(activeCompanyId, { nickname, conversationId: previousSession })
+  }
+
+  const resumeFromForm = () => {
+    if (!previousSession) return
+    setConversationId(previousSession)
+    setPreviousSession(null)
+    setReady(true)
     saveSession(activeCompanyId, { nickname, conversationId: previousSession })
   }
 
@@ -448,6 +453,8 @@ export default function Chat() {
     setShowFaq(false)
   }
 
+  const DEMO_BUYERS = ['王女士', '李女士', '赵小姐']
+
   if (!ready) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -455,8 +462,16 @@ export default function Chat() {
           <div className="text-center mb-6">
             <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3 text-lg">云</div>
             <h1 className="text-lg font-semibold text-gray-800">{shopName}</h1>
-            <p className="text-xs text-gray-400 mt-1">请输入昵称后开始咨询（坐席端将显示此名称）</p>
+            <p className="text-xs text-gray-400 mt-1">请选择或输入昵称后开始咨询（坐席端将显示此名称）</p>
           </div>
+
+          {previousSession && (
+            <button type="button" onClick={resumeFromForm}
+              className="w-full mb-4 py-2 text-xs text-primary border border-primary/30 rounded-xl hover:bg-primary/5">
+              继续上次对话 →
+            </button>
+          )}
+
           <form onSubmit={startWithNickname} className="space-y-4">
             <input
               required
@@ -466,6 +481,17 @@ export default function Chat() {
               maxLength={20}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
+            <div>
+              <p className="text-[11px] text-gray-400 mb-2">快速选择演示买家：</p>
+              <div className="flex flex-wrap gap-2">
+                {DEMO_BUYERS.map((b) => (
+                  <button type="button" key={b} onClick={() => setNicknameInput(b)}
+                    className="text-xs px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-gray-600 hover:border-primary hover:text-primary">
+                    {b}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button type="submit" className="w-full py-2.5 bg-primary text-white rounded-xl text-sm hover:bg-primary-dark">
               开始咨询
             </button>
