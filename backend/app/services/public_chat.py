@@ -83,34 +83,65 @@ def parse_meta(raw: str | None) -> dict:
     return {}
 
 
+# —— 买家端白名单 ——
+# 原则：买家的屏幕上只该有「客服说的话」+「能看懂的订单卡片」+「一个明确的操作按钮」。
+# 执行计划、工具名、规则理由、检索来源、置信度、内部备注一律不下发（不是前端隐藏，是后端不给）。
+BUYER_ACTION_LABELS = {
+  "refund_review": "提交退货申请",
+}
+
+_CARD_FIELDS = ("type", "order_id", "product", "status", "express", "tracking_no", "logistics", "amount")
+
+
+def buyer_card(card: dict | None) -> dict | None:
+  """订单卡片：只保留买家看得懂的业务字段，去掉 demo 等内部标记。"""
+  if not isinstance(card, dict) or not card:
+    return None
+  out = {k: card.get(k) for k in _CARD_FIELDS}
+  if not out.get("order_id"):
+    return None
+  out["type"] = out.get("type") or "order"
+  return out
+
+
+def buyer_action(pending: dict | None) -> dict | None:
+  """待确认动作：只给按钮文案，不给 action 类型、风险说明、payload。"""
+  if not isinstance(pending, dict) or not pending.get("id"):
+    return None
+  action = str(pending.get("action") or "")
+  return {
+    "id": pending["id"],
+    "label": BUYER_ACTION_LABELS.get(action, "确认提交"),
+  }
+
+
 def serialize_message(msg: Message) -> dict:
-  sources = []
-  if msg.sources:
-    try:
-      sources = json.loads(msg.sources)
-    except Exception:
-      sources = []
   meta = parse_meta(getattr(msg, "meta", None))
   display_role = "assistant"
   if msg.role == "customer":
     display_role = "user"
   elif msg.role == "agent":
     display_role = "agent"
-  elif msg.role == "ai_suggestion":
-    display_role = "assistant"
   return {
     "id": msg.id,
     "role": display_role,
     "content": msg.content,
-    "confidence": msg.confidence,
-    "sources": sources,
     "created_at": msg.created_at.isoformat() if msg.created_at else None,
-    # —— 结构化元数据（刷新/轮询后依然保留，不会「闪一下就没」）——
-    "intent_label": meta.get("intent_label"),
-    "plan_steps": meta.get("plan_steps") or [],
-    "pending_confirmation": meta.get("pending_confirmation"),
-    "card": meta.get("card"),
-    "is_internal": bool(getattr(msg, "is_internal", False)),
+    "card": buyer_card(meta.get("card")),
+    "action": buyer_action(meta.get("pending_confirmation")),
+  }
+
+
+def buyer_response(result: dict) -> dict:
+  """把 agent 的内部结果压成买家视图（白名单，多余字段直接丢弃）。"""
+  return {
+    "conversation_id": result.get("conversation_id"),
+    "message_id": result.get("message_id", 0),
+    "answer": result.get("answer", ""),
+    "need_human": bool(result.get("need_human")),
+    "human_mode": bool(result.get("human_mode")),
+    "card": buyer_card(result.get("card")),
+    "action": buyer_action(result.get("pending_confirmation")),
   }
 
 

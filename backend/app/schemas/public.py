@@ -32,6 +32,7 @@ class SourceItem(BaseModel):
 
 
 class PlanStepOut(BaseModel):
+  """（内部）执行计划步骤 — 仅坐席端使用，不在买家端 schema 中出现"""
   id: str
   title: str
   status: str = "done"
@@ -40,6 +41,7 @@ class PlanStepOut(BaseModel):
 
 
 class PendingConfirmationOut(BaseModel):
+  """（内部）待确认动作 — 仅坐席端使用；买家端只下发 BuyerActionOut"""
   id: str
   action: str
   title: str
@@ -49,7 +51,7 @@ class PendingConfirmationOut(BaseModel):
 
 
 class OrderCardOut(BaseModel):
-  """订单卡片（买家端结构化渲染）"""
+  """订单卡片（买家端结构化渲染）— 只含买家看得懂的业务字段"""
   type: str = "order"
   order_id: str
   product: str | None = None
@@ -58,40 +60,37 @@ class OrderCardOut(BaseModel):
   tracking_no: str | None = None
   logistics: str | None = None
   amount: float | None = None
-  demo: bool = True
+
+
+class BuyerActionOut(BaseModel):
+  """买家端待确认动作 — 只给按钮，不给内部动作类型/payload"""
+  id: str
+  label: str = "确认提交"
 
 
 class PublicChatResponse(BaseModel):
-  """买家端对话响应"""
+  """买家端对话响应（买家视图白名单）
+
+  注意：执行计划、工具调用、检索来源、置信度、内部备注等均不在此模型中，
+  即使 agent 侧返回了也会被丢弃 —— 买家端接口从设计上就拿不到内部信息。
+  """
   conversation_id: int
   message_id: int
   answer: str
-  confidence: float
   need_human: bool
   human_mode: bool = False
-  sources: list[SourceItem] = []
-  intent: str | None = None
-  intent_label: str | None = None
-  plan_steps: list[PlanStepOut] = []
-  pending_confirmation: PendingConfirmationOut | None = None
-  review_status: str | None = None
-  terminal_state: str = "answered"
   card: OrderCardOut | None = None
+  action: BuyerActionOut | None = None
 
 
 class PublicMessageOut(BaseModel):
+  """买家端单条消息（买家视图白名单）"""
   id: int
   role: str
   content: str
-  confidence: float | None = None
-  sources: list = []
   created_at: str | None = None
-  # 结构化元数据：轮询/刷新后执行计划、确认按钮、订单卡片都要还在
-  intent_label: str | None = None
-  plan_steps: list[PlanStepOut] = []
-  pending_confirmation: PendingConfirmationOut | None = None
   card: OrderCardOut | None = None
-  is_internal: bool = False
+  action: BuyerActionOut | None = None
 
 
 class PublicConversationOut(BaseModel):

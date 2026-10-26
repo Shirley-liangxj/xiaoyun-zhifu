@@ -15,7 +15,7 @@ from app.schemas.public import (
   PublicTransferRequest,
 )
 from app.services.errors import ExternalServiceError
-from app.services.public_chat import list_buyer_messages, transfer_to_human
+from app.services.public_chat import buyer_response, list_buyer_messages, transfer_to_human
 from app.services.settings import get_or_create_settings
 
 router = APIRouter(prefix="/api/public", tags=["买家端"])
@@ -57,7 +57,7 @@ def public_chat(
     result = run_agent_turn(
       db, cid, body.message, body.conversation_id, body.customer_name
     )
-    return PublicChatResponse(**result)
+    return PublicChatResponse(**buyer_response(result))
   except ExternalServiceError as e:
     raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
   except Exception as e:
@@ -75,7 +75,7 @@ def public_confirm(
     result = confirm_pending_action(
       db, cid, body.confirmation_id, body.conversation_id, body.customer_name
     )
-    return PublicChatResponse(**result)
+    return PublicChatResponse(**buyer_response(result))
   except ValueError as e:
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -88,11 +88,7 @@ def public_transfer(
 ):
   cid = resolve_company_id(db, body.company_id if body.company_id is not None else company_id)
   result = transfer_to_human(db, cid, body.conversation_id, body.customer_name)
-  result.setdefault("intent", "transfer")
-  result.setdefault("intent_label", "转人工")
-  result.setdefault("plan_steps", [])
-  result.setdefault("pending_confirmation", None)
-  return PublicChatResponse(**result)
+  return PublicChatResponse(**buyer_response(result))
 
 
 @router.get("/conversations/{conversation_id}", response_model=PublicConversationOut, summary="买家拉取会话消息")

@@ -76,6 +76,7 @@ def calc_refund(
         "demo": True,
       },
       "summary": "请补充" + "、".join(labels[field] for field in missing_fields) + "，我再为您进行退款试算。",
+      "buyer_text": "方便把订单号发给我吗？我这边帮您查一下具体情况～",
     }
 
   worn = bool(re.search(r"穿过|穿了|沾了|污损", message))
@@ -83,18 +84,34 @@ def calc_refund(
     refund = 0.0
     reason = "疑似已穿着/污损，演示规则下不自动退款，需人工核实"
     eligible = False
+    buyer_text = (
+      "这种情况（已穿着或有污损）需要售后同事核实一下才能确定能不能退，"
+      "我帮您转接人工客服处理哈。"
+    )
   elif days <= 7:
     refund = round(amt, 2)
     reason = "签收后 7 天内（演示规则）可全额退款试算"
     eligible = True
+    buyer_text = (
+      f"已经帮您核对好了：订单 {order_id} 金额 ¥{amt:.2f}，签收第 {days} 天，"
+      f"在 7 天无理由范围内，可以全额退款 ¥{refund:.2f}。需要我帮您提交退货申请吗？"
+    )
   elif days <= 15:
     refund = round(amt * 0.8, 2)
     reason = "第 8–15 天（演示规则）按 80% 试算"
     eligible = True
+    buyer_text = (
+      f"已经帮您核对好了：订单 {order_id} 已签收第 {days} 天，超过 7 天无理由期限，"
+      f"按售后规则可退 80%，即 ¥{refund:.2f}。需要我帮您提交申请吗？"
+    )
   else:
     refund = 0.0
     reason = "超过 15 天（演示规则）需人工审核，试算为 0"
     eligible = False
+    buyer_text = (
+      f"订单 {order_id} 已签收第 {days} 天，超过了自助退货期限，"
+      "我帮您转接售后客服核实一下有没有特殊处理方式，好吗？"
+    )
 
   summary = (
     f"【演示试算】订单金额 ¥{amt:.2f}，购后第 {days} 天 → 建议退款 ¥{refund:.2f}。"
@@ -113,6 +130,9 @@ def calc_refund(
       "reason": reason,
       "auto_execute": False,
       "demo": True,
+      # 买家可见话术（不含规则/试算/演示等内部措辞）
+      "buyer_text": buyer_text,
     },
     "summary": summary,
+    "buyer_text": buyer_text,
   }

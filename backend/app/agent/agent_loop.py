@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from datetime import datetime
 
@@ -48,9 +49,13 @@ AGENT_SYSTEM_PROMPT = """你是服饰电商售后客服助手，只能处理服�
 - 属于 → 按下面规则调用工具。
 
 工具使用规则：
-1. 问政策/规则/怎么退/能不能退/发什么快递/用哪家快递 → 调用 search_policy，再依据返回资料回答；禁止编造政策。
+1. 【先分清「问规则」还是「要办事」——这一步做错，后面全错】
+   - 只是**询问**政策/规则/流程/费用/时效/条件（句子里常带「吗」「怎么」「能不能」「多久」「多少」「需要…吗」「谁承担」）→ 一律调用 search_policy，查资料后回答。
+     例：「退货需要自己付运费吗」「退货运费谁承担」「退款多久到账」「能换货吗」「七天无理由怎么算」→ 全部走 search_policy。
+     这类问题**禁止**直接进退款流程，**禁止**反问「您要退哪件商品」。
+   - 用户**明确表示现在就要办理**退货/退款（如「我要退货」「帮我退掉」「申请退款」「这件不要了退了吧」+ 单号）→ 才走第 3 条。
 2. 问订单进度、快递到哪了、物流状态 → 调用 query_order；用户未提供单号时向用户追问，禁止编造单号或冒用他人订单。
-3. 用户要求退款/退货：
+3. 用户要求退款/退货（动作意图）：
    - 没有单号 → 先向用户要单号（一句话问完，不要一次问多个问题）。
    - 拿到单号 → 调用 query_order 取订单信息，再调用 calc_refund 试算。订单结果里已有金额（amount）和购买天数（days_since_purchase），直接用作 calc_refund 的入参，禁止再让用户重复报金额、天数。
    - 订单里只有一个商品时，直接按这个商品试算，禁止反问「要退哪件商品」。
@@ -59,9 +64,20 @@ AGENT_SYSTEM_PROMPT = """你是服饰电商售后客服助手，只能处理服�
 4. 投诉、纠纷、情绪激烈 → 调用 transfer_to_human。
 5. 仅当问题确实属于服饰售后范畴、且无需查阅资料时（问候、感谢、简单确认、客套话），才可直接简短回答。
 
-回复要求：亲切口语、简洁（一般不超过 150 字），不要暴露内部工具名，不要重复用户已经说过的信息。"""
+回复要求：亲切口语、简洁（一般不超过 150 字），不要暴露内部工具名、规则编号、「试算」「演示数据」等内部措辞，不要重复用户已经说过的信息。
+
+【禁止空转】不允许把「请稍等」「我马上为您查询」「我先帮您查一下」这类话当作最终回复发给用户 —— 那等于把用户晾在原地。要查信息就**当场调用工具**（同一轮里直接 call query_order / calc_refund / search_policy），查完再回答；确实查不了就直接给结论或说明原因。"""
 
 HISTORY_LIMIT = 12
+
+# 模型常见的「空转」话术：说要查，但压根没调工具，把用户晾在原地
+VACUOUS_RE = re.compile(r"请稍等|稍候|稍等一下|马上|这就|我帮您查|帮您查询|为您查询|正在查询|正在为您")
+
+
+def _looks_vacuous(text: str) -> bool:
+  """判断这句回复是不是「只说去查、其实没查」的空转话术。"""
+  t = (text or "").strip()
+  return bool(t) and len(t) <= 80 and bool(VACUOUS_RE.search(t))
 
 
 def _load_history(db: Session, conversation_id: int, limit: int = HISTORY_LIMIT) -> list[Message]:
@@ -264,16 +280,25 @@ def _attach_meta(
   plan_steps: list,
   pending_confirmation: dict | None,
   card: dict | None,
+  internal_note: str | None = None,
 ) -> None:
-  """把执行计划/待确认动作/业务卡片落到消息上，刷新或轮询后不会丢失。"""
+  """把执行计划/待确认动作/业务卡片落到消息上，刷新或轮询后不会丢失。
+
+  meta 里的 plan_steps / intent_label / internal_note 属于「坐席可见」内容，
+  买家端接口会做白名单过滤，绝不下发。
+  """
   if ai_msg is None:
     return
-  ai_msg.meta = json.dumps({
+  meta = parse_meta_safe(getattr(ai_msg, "meta", None))
+  meta.update({
     "intent_label": intent_label,
     "plan_steps": plan_steps or [],
     "pending_confirmation": pending_confirmation,
     "card": card,
-  }, ensure_ascii=False)
+  })
+  if internal_note:
+    meta["internal_note"] = internal_note
+  ai_msg.meta = json.dumps(meta, ensure_ascii=False)
   db.commit()
 
 
@@ -353,7 +378,10 @@ def _do_transfer(
   conv.status = "waiting_human"
   need_human = True
   sources_data = sources_data or []
-  ai_msg = _save_ai_message(db, conv, answer, confidence, sources_data)
+  ai_msg = _save_ai_message(
+    db, conv, answer, confidence, sources_data,
+    meta={"internal_note": detail},
+  )
   steps = list(plan_steps or [])
   steps.append({
     "id": "transfer",
@@ -371,14 +399,21 @@ def _build_refund_pending(
   conv: Conversation,
   customer_name: str,
   refund_out: dict,
-) -> tuple[dict, str]:
+) -> tuple[dict, str, str]:
+  """生成 HITL 待确认动作。
+
+  返回 (pending, buyer_answer, internal_note)：
+  - buyer_answer 是买家看到的客服话术（不含规则/试算/演示等内部措辞）
+  - internal_note 只给坐席看（试算明细 + 风险说明）
+  """
   result = refund_out.get("result") or {}
   confirmation_id = str(uuid.uuid4())
+  internal_note = refund_out.get("summary", "")
   pending = {
     "id": confirmation_id,
     "action": "refund_review",
     "title": "退款建议待审核",
-    "detail": refund_out.get("summary", ""),
+    "detail": internal_note,
     "payload": result,
     "demo": True,
   }
@@ -389,18 +424,16 @@ def _build_refund_pending(
     customer_name=customer_name,
     action="refund_review",
     title="退款建议待审核",
-    detail=refund_out.get("summary", ""),
+    detail=internal_note,
     payload=json.dumps(result, ensure_ascii=False),
     status="pending_buyer",
-    risk_reason="退款涉及资金动作，必须由坐席审核；系统仅提供演示试算。",
+    risk_reason="退款涉及资金动作，必须由坐席审核；系统仅提供试算。",
   ))
   db.commit()
-  answer = (
-    f"{refund_out.get('summary', '')}\n\n"
-    "请点击下方「确认提交给人工」后，坐席将按演示流程处理；"
-    "系统不会自动打款。"
+  answer = refund_out.get("buyer_text") or (
+    "已经帮您核对好了，需要我帮您提交退货申请吗？"
   )
-  return pending, answer
+  return pending, answer, internal_note
 
 
 def run_agent_turn(
@@ -651,10 +684,10 @@ def run_agent_turn(
 
         # 缺少业务关键参数时直接追问，不允许工具自行补造演示参数。
         if out.get("needs_clarification"):
-          answer = out.get("summary") or "请补充必要信息后再试。"
+          answer = out.get("buyer_text") or out.get("summary") or "请补充必要信息后再试。"
           confidence = 1.0
           plan_steps[-1]["status"] = "needs_input"
-          plan_steps[-1]["detail"] = answer
+          plan_steps[-1]["detail"] = out.get("summary") or answer
           interrupted = True
           interrupt_reason = "needs_clarification"
           break
@@ -716,14 +749,18 @@ def run_agent_turn(
             "tool_call_id": call_id,
             "content": json.dumps(out, ensure_ascii=False),
           })
-          if name == "calc_refund":
+          eligible = bool((out.get("result") or {}).get("eligible"))
+          if name == "calc_refund" and eligible:
             # HITL 确认卡：不立刻改 waiting_human
-            pending, answer = _build_refund_pending(
+            pending, answer, internal_note = _build_refund_pending(
               db, company_id, conv, customer_name, out
             )
             confidence = 0.75
             need_human = True
-            ai_msg = _save_ai_message(db, conv, answer, confidence, sources_data)
+            ai_msg = _save_ai_message(
+              db, conv, answer, confidence, sources_data,
+              meta={"internal_note": internal_note},
+            )
             plan_steps.append({
               "id": "hitl",
               "title": "提交人工审核",
@@ -734,7 +771,8 @@ def run_agent_turn(
             interrupted = True
             interrupt_reason = "calc_refund_hitl"
           else:
-            # transfer_to_human 或其他 needs_human：立刻转人工
+            # transfer_to_human，或不符合自助退款条件（超期/已穿着）：直接转人工，
+            # 不给买家「确认提交」按钮，避免让买家确认一个注定被拒的动作
             ai_msg, answer, confidence, need_human, sources_data, plan_steps = _do_transfer(
               db, conv, company_settings,
               confidence=0.35,
@@ -742,6 +780,10 @@ def run_agent_turn(
               plan_steps=plan_steps,
               detail=(out.get("result") or {}).get("reason") or out.get("summary") or "已转人工",
             )
+            if name == "calc_refund" and out.get("buyer_text"):
+              ai_msg.content = out["buyer_text"].strip()
+              answer = ai_msg.content
+              db.commit()
             interrupted = True
             interrupt_reason = name or "needs_human"
           break
@@ -777,6 +819,62 @@ def run_agent_turn(
       detail=f"大模型调用失败，已转人工：{e}",
     )
     interrupt_reason = "llm_error"
+
+  # 空转兜底：模型只回了「请稍等 / 我帮您查」却没真正调工具 —— 代码替它把事办完。
+  # 这是「模型优先 + 代码兜底」的双保险：核心退款链路不允许因为模型偷懒而断在半路。
+  if ai_msg is None and not interrupted and not tools_called and _looks_vacuous(answer):
+    forced_oid = extract_order_id(message)
+    if forced_oid:
+      q_out = run_tool(
+        "query_order", message, company_id=company_id,
+        fallback_to_first=False, order_id=forced_oid,
+      )
+      tools_log.append({"name": "query_order", "args": {"order_id": forced_oid}, "output": q_out})
+      r_out = run_tool(
+        "calc_refund", message, company_id=company_id,
+        fallback_to_first=False, order_id=forced_oid,
+      )
+      tools_log.append({"name": "calc_refund", "args": {"order_id": forced_oid}, "output": r_out})
+      tools_called = ["query_order", "calc_refund"]
+      grounded = True
+      for t in tools_log:
+        plan_steps.append({
+          "id": t["name"],
+          "title": t["name"],
+          "status": "done" if (t["output"] or {}).get("ok") else "pending",
+          "detail": (t["output"] or {}).get("summary", ""),
+          "demo": True,
+        })
+      if (r_out.get("result") or {}).get("eligible"):
+        pending, answer, internal_note = _build_refund_pending(
+          db, company_id, conv, customer_name, r_out
+        )
+        confidence = 0.75
+        need_human = True
+        ai_msg = _save_ai_message(
+          db, conv, answer, confidence, [],
+          meta={"internal_note": internal_note},
+        )
+        plan_steps.append({
+          "id": "hitl",
+          "title": "提交人工审核",
+          "status": "needs_confirm",
+          "detail": "高风险退款建议，需买家确认后提交坐席审核；系统不会自动退款",
+          "demo": False,
+        })
+      else:
+        ai_msg, answer, confidence, need_human, sources_data, plan_steps = _do_transfer(
+          db, conv, company_settings,
+          confidence=0.35,
+          sources_data=sources_data,
+          plan_steps=plan_steps,
+          detail=(r_out.get("result") or {}).get("reason") or "退款条件不满足，转人工",
+        )
+        if r_out.get("buyer_text"):
+          ai_msg.content = r_out["buyer_text"].strip()
+          answer = ai_msg.content
+          db.commit()
+      interrupt_reason = "vacuous_fallback"
 
   # 正常结束：模型给出最终文本（未走中断路径）
   if ai_msg is None:
@@ -879,10 +977,10 @@ def confirm_pending_action(
   db.commit()
 
   conv.status = "waiting_human"
+  # 买家看到的是客服话术；金额/单号等内部明细只写 internal_note
   answer = (
-    f"【演示】已收到您的确认：建议退款 ¥{payload.get('refund_amount', 0)} "
-    f"（订单 {payload.get('order_id', 'DEMO')}）。"
-    "已转入人工队列，坐席将继续处理。系统未自动打款。"
+    "好的，退货申请已经帮您提交了，售后客服会尽快为您办理，"
+    "后续进度会在这里同步给您。"
   )
   ai_msg = _save_ai_message(db, conv, answer, 0.9, [])
   _attach_meta(
@@ -893,6 +991,10 @@ def confirm_pending_action(
     ],
     pending_confirmation=None,
     card=None,
+    internal_note=(
+      f"买家已确认提交：建议退款 ¥{payload.get('refund_amount', 0)}"
+      f"（订单 {payload.get('order_id', 'DEMO')}），状态 pending_buyer → waiting_review，未自动打款。"
+    ),
   )
   _clear_pending_meta(db, conv.id, confirmation_id)
   append_trace({

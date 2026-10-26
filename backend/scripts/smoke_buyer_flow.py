@@ -1,15 +1,19 @@
-"""本地回归：验证买家端多轮上下文 / 消息元数据 / 客户信息卡
+"""本地回归：买家端多轮上下文 / 元数据持久化 / 客户信息卡 / 买家视图白名单
 
 不依赖真实大模型：临时替换 llm_service.complete，记录模型实际收到的 messages。
+
+重点回归「买家端不得泄露内部信息」：执行计划、工具名、规则理由、检索来源、
+置信度、内部备注都不允许出现在 /api/public/* 的响应里。
 """
 import json
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 WORK = tempfile.mkdtemp(prefix="xytest_")
 os.chdir(WORK)
-sys.path.insert(0, r"D:\codex\xiaoyun-github-sync-20261014\backend")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -58,16 +62,18 @@ with TestClient(app) as client:
   last_user = [m for m in msgs2 if m["role"] == "user"][-1]["content"]
   check("最后一轮带上了承接提示", "对话上下文提示" in last_user, last_user)
 
-  # ---------- 2. 消息元数据持久化 ----------
+  # ---------- 2. 买家视图白名单：内部信息一个都不许出现 ----------
+  INTERNAL_FIELDS = {
+    "plan_steps", "intent_label", "intent", "pending_confirmation",
+    "sources", "confidence", "is_internal", "terminal_state", "review_status",
+  }
   detail = client.get(f"/api/public/conversations/{conv_id}").json()
   msgs = detail["messages"]
   check("买家端能拉到消息", len(msgs) >= 3, str(len(msgs)))
-  ai_msgs = [m for m in msgs if m["role"] == "assistant"]
-  check("AI 消息带 plan_steps 字段", all("plan_steps" in m for m in ai_msgs))
-  check("直接回答产生了执行计划", any(m["plan_steps"] for m in ai_msgs),
-        str([m["plan_steps"] for m in ai_msgs]))
-  check("AI 消息带 intent_label", any(m.get("intent_label") for m in ai_msgs),
-        str([m.get("intent_label") for m in ai_msgs]))
+  leaked = [sorted(INTERNAL_FIELDS & set(m)) for m in msgs if INTERNAL_FIELDS & set(m)]
+  check("买家端消息不含任何内部字段", not leaked, str(leaked)[:300])
+  check("买家端消息只保留 card/action 结构", all("card" in m and "action" in m for m in msgs),
+        str([sorted(m) for m in msgs])[:300])
 
   # ---------- 3. 坐席端登录 + 会话 / 客户信息卡 ----------
   login = client.post("/api/auth/login", json={"username": "testadmin", "password": "123456"})
@@ -131,31 +137,66 @@ with TestClient(app) as client:
   check("退款链路首轮 200", first.status_code == 200, first.text[:300])
   d = first.json()
   cid = d["conversation_id"]
+  answer = d.get("answer", "")
 
-  check("退款链路产生了待确认动作", bool(d.get("pending_confirmation")), str(d)[:400])
-  check("待确认金额为 268", (d.get("pending_confirmation") or {}).get("payload", {}).get("refund_amount") == 268.0,
-        str(d.get("pending_confirmation")))
-  check("回复包含试算金额", "268" in d.get("answer", ""), d.get("answer", "")[:200])
-  check("退款走了 HITL 中断", any(s.get("id") == "hitl" for s in d.get("plan_steps", [])), str(d.get("plan_steps")))
+  check("退款链路产生了待确认动作（买家只拿到按钮）", bool(d.get("action")), str(d)[:400])
+  check("按钮文案是客服口吻", (d.get("action") or {}).get("label") == "提交退货申请", str(d.get("action")))
+  check("买家回复包含退款金额", "268" in answer, answer[:200])
+  BANNED = ("试算", "演示", "规则", "query_order", "calc_refund", "search_policy", "置信度", "payload", "HITL")
+  hit_banned = [w for w in BANNED if w in answer]
+  check("买家回复不含内部措辞", not hit_banned, f"{hit_banned} in {answer[:200]}")
 
-  # 轮询接口 = 买家端每 2.5 秒拉的那次，确认单和订单卡片必须还在
+  banned_top = {"plan_steps", "intent_label", "sources", "confidence", "terminal_state", "review_status", "pending_confirmation"}
+  leaked_top = sorted(banned_top & set(d))
+  check("买家响应不含内部字段", not leaked_top, str(leaked_top))
+
+  # 轮询接口 = 买家端每 2.5 秒拉的那次，按钮和订单卡片必须还在
   polled = client.get(f"/api/public/conversations/{cid}").json()
   ai_msgs = [m for m in polled["messages"] if m["role"] == "assistant"]
-  hitl_msg = next((m for m in ai_msgs if m.get("pending_confirmation")), None)
-  check("轮询后确认按钮仍在（不再闪一下就没）", hitl_msg is not None, str(ai_msgs)[:400])
+  hitl_msg = next((m for m in ai_msgs if m.get("action")), None)
+  check("轮询后按钮仍在（不再闪一下就没）", hitl_msg is not None, str(ai_msgs)[:400])
   check("轮询后订单卡片仍在", any(m.get("card") for m in ai_msgs), str([m.get("card") for m in ai_msgs])[:300])
-  check("轮询后执行计划仍在", any(m.get("plan_steps") for m in ai_msgs))
+  check("卡片不含 demo 内部标记",
+        all("demo" not in (m.get("card") or {}) for m in ai_msgs),
+        str([m.get("card") for m in ai_msgs])[:300])
 
   # 确认后，按钮应消失
   if hitl_msg:
-    cid_confirm = hitl_msg["pending_confirmation"]["id"]
+    cid_confirm = hitl_msg["action"]["id"]
     conf = client.post("/api/public/confirm", json={
       "confirmation_id": cid_confirm, "conversation_id": cid, "customer_name": "退款买家",
     })
     check("确认接口可用", conf.status_code == 200, conf.text[:300])
+    conf_answer = conf.json().get("answer", "")
+    check("确认回复是客服话术", "提交" in conf_answer and not [w for w in BANNED if w in conf_answer],
+          conf_answer[:200])
     after = client.get(f"/api/public/conversations/{cid}").json()
-    still = [m for m in after["messages"] if (m.get("pending_confirmation") or {}).get("id") == cid_confirm]
+    still = [m for m in after["messages"] if (m.get("action") or {}).get("id") == cid_confirm]
     check("确认后按钮消失，不能重复点", len(still) == 0, str(len(still)))
+
+  # 坐席端仍然拿得到内部细节（内部信息只是不给买家，不是丢了）
+  login2 = client.post("/api/auth/login", json={"username": "testadmin", "password": "123456"})
+  h2 = {"Authorization": f"Bearer {login2.json().get('access_token')}"}
+  agent_detail = client.get(f"/api/conversations/{cid}", headers=h2).json()
+  meta_blob = json.dumps(agent_detail, ensure_ascii=False)
+  check("坐席端仍能看到执行计划", "plan_steps" in meta_blob, meta_blob[:200])
+  check("坐席端仍能看到内部备注", "internal_note" in meta_blob, meta_blob[:200])
+
+print()
+print("=" * 50)
+
+
+# ---------- 6. 模型空转兜底：只说「请稍等」却没调工具 ----------
+def vacuous_complete(messages, temperature=0.7, tools=None, tool_choice=None):
+  return LLMResult(content="好的，请稍等，我帮您查询一下订单信息。", tool_calls=[], usage={}, latency_ms=1)
+
+
+llm_service.complete = vacuous_complete
+with TestClient(app) as client:
+  v = client.post("/api/public/chat", json={"message": "我要退货 DEMO-1003", "customer_name": "空转买家"}).json()
+  check("空转话术不会原样发给买家", "请稍等" not in v["answer"], v["answer"][:200])
+  check("空转时由代码兜底完成查单+试算", bool(v.get("action")) and bool(v.get("card")), str(v)[:300])
+  check("兜底后按钮文案正确", (v.get("action") or {}).get("label") == "提交退货申请", str(v.get("action")))
 
 print()
 print("=" * 50)

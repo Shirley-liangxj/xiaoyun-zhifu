@@ -11,55 +11,49 @@ function roleMeta(role) {
   return { align: 'start', bubble: 'bg-white text-gray-800 shadow-sm rounded-bl-md', label: 'AI 小云' }
 }
 
-function stepStatusClass(status) {
-  if (status === 'needs_confirm') return 'text-red-600 bg-red-50 border-red-200'
-  if (status === 'pending') return 'text-amber-700 bg-amber-50 border-amber-200'
-  return 'text-gray-600 bg-gray-50 border-gray-200'
-}
-
-function PlanCard({ steps, intentLabel }) {
-  if (!steps?.length) return null
+// 买家端只渲染「客服说的话 + 订单卡片 + 一个操作按钮」
+// 执行计划 / 工具调用 / 检索来源 / 置信度属于坐席视图，后端不下发
+function OrderCard({ card }) {
+  if (!card || card.type !== 'order') return null
   return (
-    <div className="mt-2 p-2.5 rounded-xl border border-gray-200 bg-white/90 text-left">
-      <p className="text-[11px] font-semibold text-gray-700 mb-1.5">
-        执行计划{intentLabel ? ` · ${intentLabel}` : ''}
-      </p>
-      <ul className="space-y-1.5">
-        {steps.map((s, i) => (
-          <li key={`${s.id}-${i}`} className={`text-[11px] px-2 py-1.5 rounded-lg border ${stepStatusClass(s.status)}`}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium">{s.title}</span>
-              <span className="opacity-70 shrink-0">
-                {s.status === 'needs_confirm' ? '待确认' : s.status === 'done' ? '完成' : '进行中'}
-              </span>
-            </div>
-            {s.detail && <p className="mt-0.5 opacity-80 whitespace-pre-wrap">{s.detail}</p>}
-            {s.demo && <p className="mt-0.5 text-[10px] text-amber-700">演示数据</p>}
-          </li>
-        ))}
-      </ul>
+    <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-white border-b border-gray-100">
+        <span className="text-[11px] text-gray-400">订单号 {card.order_id}</span>
+        {card.status && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 shrink-0">
+            {card.status}
+          </span>
+        )}
+      </div>
+      <div className="px-2.5 py-2">
+        {card.product && <p className="text-xs font-medium text-gray-800">{card.product}</p>}
+        {card.amount != null && (
+          <p className="text-[11px] text-gray-500 mt-0.5">实付 ¥{Number(card.amount).toFixed(2)}</p>
+        )}
+        {(card.express || card.tracking_no) && (
+          <p className="text-[11px] text-gray-500 mt-0.5">
+            {card.express} {card.tracking_no}
+          </p>
+        )}
+        {card.logistics && <p className="text-[11px] text-gray-400 mt-0.5">{card.logistics}</p>}
+      </div>
     </div>
   )
 }
 
-function OrderCard({ card }) {
-  if (!card || card.type !== 'order') return null
+function ActionBar({ action, loading, onConfirm }) {
+  if (!action?.id) return null
   return (
-    <div className="mt-2 rounded-xl border border-gray-200 bg-white p-2.5 text-left">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-gray-700">订单 {card.order_id}</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 shrink-0">
-          {card.status}
-        </span>
-      </div>
-      <p className="text-[11px] text-gray-600 mt-1">{card.product}</p>
-      {(card.express || card.tracking_no) && (
-        <p className="text-[11px] text-gray-500 mt-1">
-          {card.express} {card.tracking_no}
-        </p>
-      )}
-      {card.logistics && <p className="text-[11px] text-gray-500">{card.logistics}</p>}
-      {card.demo && <p className="text-[10px] text-amber-600 mt-1">演示数据，非真实物流</p>}
+    <div className="mt-2">
+      <button
+        type="button"
+        disabled={loading}
+        onClick={() => onConfirm(action.id)}
+        className="w-full text-xs font-medium px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-60"
+      >
+        {action.label || '确认提交'}
+      </button>
+      <p className="text-[10px] text-gray-400 mt-1 text-center">提交后由客服跟进处理</p>
     </div>
   )
 }
@@ -215,12 +209,9 @@ export default function Chat() {
           id: m.id,
           role: m.role,
           content: m.content,
-          sources: m.sources,
           created_at: m.created_at,
-          intent_label: m.intent_label,
-          plan_steps: m.plan_steps || [],
-          pending_confirmation: m.pending_confirmation || null,
           card: m.card || null,
+          action: m.action || null,
         }))
         if (remote.length === 0) return
         setMessages((prev) => {
@@ -278,18 +269,15 @@ export default function Chat() {
   const appendAssistant = (data) => {
     setConversationId(data.conversation_id)
     saveSession(activeCompanyId, { nickname, conversationId: data.conversation_id })
-    setHumanMode(!!data.human_mode || (!!data.need_human && !data.pending_confirmation))
-    if (!data.answer && !data.plan_steps?.length) return
+    setHumanMode(!!data.human_mode || (!!data.need_human && !data.action))
+    if (!data.answer && !data.card) return
     setMessages((prev) => [...prev, {
       id: data.message_id,
       role: 'assistant',
       content: data.answer || '',
       need_human: data.need_human,
-      sources: data.sources,
-      intent_label: data.intent_label,
-      plan_steps: data.plan_steps || [],
-      pending_confirmation: data.pending_confirmation || null,
       card: data.card || null,
+      action: data.action || null,
       created_at: new Date().toISOString(),
     }])
   }
@@ -432,9 +420,7 @@ export default function Chat() {
 
                       <OrderCard card={msg.card} />
 
-                      {msg.plan_steps?.length > 0 && (
-                        <PlanCard steps={msg.plan_steps} intentLabel={msg.intent_label} />
-                      )}
+                      <ActionBar action={msg.action} loading={loading} onConfirm={handleConfirm} />
 
                       {msg.created_at && (
                         <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-white/60 text-right' : 'text-gray-300'}`}>
@@ -442,35 +428,13 @@ export default function Chat() {
                         </p>
                       )}
 
-                      {msg.pending_confirmation && (
-                        <button
-                          type="button"
-                          disabled={loading}
-                          onClick={() => handleConfirm(msg.pending_confirmation.id)}
-                          className="mt-2 w-full text-xs px-2 py-2 bg-red-50 border border-red-300 text-red-700 rounded-lg hover:bg-red-100 disabled:opacity-60"
-                        >
-                          确认提交给人工（不会自动打款）
-                        </button>
-                      )}
-
-                      {msg.need_human && humanMode && !msg.pending_confirmation && (
+                      {msg.need_human && humanMode && !msg.action && (
                         <div className="mt-2 px-2 py-1.5 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
                           已进入人工队列，坐席回复后会显示在这里
                         </div>
                       )}
 
-                      {msg.sources?.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-gray-100">
-                          <p className="text-xs text-gray-400 mb-1">参考来源</p>
-                          {msg.sources.map((s, j) => (
-                            <span key={j} className="inline-block text-xs bg-primary-light text-primary-dark px-1.5 py-0.5 rounded mr-1 mb-1">
-                              {s.title}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {msg.need_human && !humanMode && !msg.pending_confirmation && msg.role === 'assistant' && !msg.isWelcome && (
+                      {msg.need_human && !humanMode && !msg.action && msg.role === 'assistant' && !msg.isWelcome && (
                         <button
                           type="button"
                           onClick={handleTransfer}

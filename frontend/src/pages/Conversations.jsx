@@ -687,6 +687,14 @@ export default function Conversations() {
                       <div className={`max-w-[70%] rounded-xl px-4 py-2.5 ${roleColor[msg.role] || 'bg-gray-50'}`}>
                         <p className="text-xs font-medium mb-0.5 opacity-60">{roleLabel[msg.role] || msg.role}</p>
                         <p className="text-sm">{msg.content}</p>
+                        {parseMeta(msg.meta).internal_note && (
+                          <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1.5">
+                            <p className="text-[10px] font-medium text-amber-700 mb-0.5">内部信息 · 买家不可见</p>
+                            <p className="text-[11px] text-amber-800 whitespace-pre-wrap">
+                              {parseMeta(msg.meta).internal_note}
+                            </p>
+                          </div>
+                        )}
                         {parseMeta(msg.meta).plan_steps?.length > 0 && (
                           <details className="mt-2 rounded-lg bg-white/70 border border-black/5 px-2 py-1.5">
                             <summary className="text-[11px] text-gray-500 cursor-pointer select-none">
